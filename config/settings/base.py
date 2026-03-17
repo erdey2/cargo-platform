@@ -1,8 +1,7 @@
 """Base settings to build other settings files upon."""
 from pathlib import Path
-import os
+import os, environ, dj_database_url
 from datetime import timedelta
-import environ
 
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 
@@ -29,10 +28,29 @@ USE_I18N = True
 USE_TZ = True
 LOCALE_PATHS = [str(BASE_DIR / "locale")]
 
-# DATABASES
-DATABASES = {
-    'default': env.db('DATABASE_URL'),
-}
+DATABASE_URL = env("DATABASE_URL", default=None)
+
+if DATABASE_URL:
+    # Production database (Render)
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            engine="django.contrib.gis.db.backends.postgis",
+            conn_max_age=600,
+        )
+    }
+else:
+    # Local PostgreSQL + PostGIS
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.contrib.gis.db.backends.postgis",
+            "NAME": env("DB_NAME"),
+            "USER": env("DB_USER"),
+            "PASSWORD": env("DB_PASSWORD"),
+            "HOST": env("DB_HOST"),
+            "PORT": env("DB_PORT"),
+        }
+    }
 
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -159,9 +177,9 @@ CACHES = {
 
 # Cloudinary Config
 CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': env('CLOUDINARY_CLOUD_NAME'),
-    'API_KEY': env('CLOUDINARY_API_KEY'),
-    'API_SECRET': env('CLOUDINARY_API_SECRET'),
+    'CLOUD_NAME': env('CLOUDINARY_CLOUD_NAME', default=None),
+    'API_KEY': env('CLOUDINARY_API_KEY', default=None),
+    'API_SECRET': env('CLOUDINARY_API_SECRET', default=None),
     'UPLOAD_OPTIONS': {
         'folder': 'car-images/',
         'resource_type': 'image',
@@ -216,7 +234,7 @@ X_FRAME_OPTIONS = "DENY"
 EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
 
 ANYMAIL = {
-    "BREVO_API_KEY": env("BREVO_API_KEY"),
+    "BREVO_API_KEY": env("BREVO_API_KEY", default=None),
 }
 
 DEFAULT_FROM_EMAIL = "Cargo Platform <noreply@online-car-market.com>"

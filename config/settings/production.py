@@ -7,11 +7,6 @@ ALLOWED_HOSTS = [
     "cargo-platform.onrender.com",
 ]
 
-DATABASES = {
-    "default": env.db("DATABASE_URL")
-}
-DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)
-
 CSRF_TRUSTED_ORIGINS = [
     "https://cargo-platform.onrender.com"
 ]
