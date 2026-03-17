@@ -4,103 +4,89 @@ from django.contrib import admin
 from django.urls import path, include
 from django.views.generic import RedirectView
 from django.views import defaults as default_views
-from drf_spectacular.views import (SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView,)
-from drf_spectacular.utils import extend_schema
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
-from dj_rest_auth.registration.views import RegisterView, ResendEmailVerificationView, VerifyEmailView
-from dj_rest_auth.views import LoginView, LogoutView, PasswordChangeView, PasswordResetView, PasswordResetConfirmView, UserDetailsView
-from rest_framework.authtoken.views import ObtainAuthToken
 
-# JWT auth views
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
+from drf_spectacular.utils import extend_schema
+
+# JWT
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
+
+# dj-rest-auth
+from dj_rest_auth.views import LoginView, LogoutView, PasswordChangeView, PasswordResetView, PasswordResetConfirmView, UserDetailsView
+from dj_rest_auth.registration.views import RegisterView, ResendEmailVerificationView, VerifyEmailView
+
 TokenObtainPairView = extend_schema(
     tags=["Authentication & Users"],
-    summary="Obtain JWT token pair",
-    description="Returns an access and refresh token for valid user credentials."
+    summary="Login (JWT)",
+    description="Get access and refresh tokens using email and password.",
 )(TokenObtainPairView)
 
 TokenRefreshView = extend_schema(
     tags=["Authentication & Users"],
-    summary="Refresh JWT access token",
-    description="Use a refresh token to obtain a new access token."
+    summary="Refresh Token",
 )(TokenRefreshView)
 
 TokenVerifyView = extend_schema(
     tags=["Authentication & Users"],
-    summary="Verify JWT token",
-    description="Check if a token is valid and not expired."
+    summary="Verify Token",
 )(TokenVerifyView)
 
-# Authentication & Users group
-RegisterView = extend_schema(tags=["Authentication & Users"])(RegisterView)
-ResendEmailVerificationView = extend_schema(tags=["Authentication & Users"])(ResendEmailVerificationView)
-VerifyEmailView = extend_schema(tags=["Authentication & Users"])(VerifyEmailView)
 LoginView = extend_schema(tags=["Authentication & Users"])(LoginView)
 LogoutView = extend_schema(tags=["Authentication & Users"])(LogoutView)
-PasswordChangeView = extend_schema(tags=["Authentication & Users"])(PasswordChangeView)
-PasswordResetView = extend_schema(tags=["Authentication & Users"])(PasswordResetView)
-PasswordResetConfirmView = extend_schema(tags=["Authentication & Users"])(PasswordResetConfirmView)
-
-# Explicit token and user views
-TokenView = extend_schema(tags=["Authentication & Users"])(ObtainAuthToken)
+RegisterView = extend_schema(tags=["Authentication & Users"])(RegisterView)
 UserDetailsView = extend_schema(tags=["Authentication & Users"])(UserDetailsView)
 
+# URL Patterns
 urlpatterns = [
-    # Django Admin, use {% url 'admin:index' %}
+    # Admin
     path(settings.ADMIN_URL, admin.site.urls),
 
-    path('', RedirectView.as_view(url='/api/docs/', permanent=False)),
-    # User management
-    path('api/accounts/', include("allauth.urls")),
+    # Redirect root → docs
+    path("", RedirectView.as_view(url="/api/docs/", permanent=False)),
 
-    # custom urls
-    path('api/users/', include("apps.users.api.urls")),
+    # Core APIs
+    path("api/users/", include("apps.users.api.urls")),
     path("api/", include("apps.shipments.api.urls")),
     path("api/", include("apps.vehicles.api.urls")),
     path("api/", include("apps.tracking.api.urls")),
     path("api/", include("apps.assignment.api.urls")),
 
-    path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    # JWT Authentication
+    path("api/auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("api/auth/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
 
-    # advanced auth
-    path('api/auth/', include('dj_rest_auth.urls')),
-    path('api/auth/', include('django.contrib.auth.urls')),
+    # dj-rest-auth (Optional but useful)
+    path("api/auth/login/", LoginView.as_view(), name="rest_login"),
+    path("api/auth/logout/", LogoutView.as_view(), name="rest_logout"),
+    path("api/auth/user/", UserDetailsView.as_view(), name="user_details"),
 
-    path('api/auth/registration/', include('dj_rest_auth.registration.urls')),
-    # path('api/otp-reset/', include('online_car_market.otp_reset.api.urls')),
+    path("api/auth/password/change/", PasswordChangeView.as_view()),
+    path("api/auth/password/reset/", PasswordResetView.as_view()),
+    path("api/auth/password/reset/confirm/", PasswordResetConfirmView.as_view()),
 
-    # Schema in raw OpenAPI format:
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    # Swagger UI:
-    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-    # Redoc UI:
-    path('api/docs/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+    path("api/auth/registration/", RegisterView.as_view(), name="rest_register"),
+    path("api/auth/registration/verify-email/", VerifyEmailView.as_view()),
+    path("api/auth/registration/resend-email/", ResendEmailVerificationView.as_view()),
 
-    # Media files
-    *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
+    # API Docs
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    path("api/docs/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
 ]
 
+# Media
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# Debug
 if settings.DEBUG:
-    # This allows the error pages to be debugged during development, just visit
-    # these url in browser to see how these error pages look like.
     urlpatterns += [
-        path(
-            "400/",
-            default_views.bad_request,
-            kwargs={"exception": Exception("Bad Request!")},
-        ),
-        path(
-            "403/",
-            default_views.permission_denied,
-            kwargs={"exception": Exception("Permission Denied")},
-        ),
-        path(
-            "404/",
-            default_views.page_not_found,
-            kwargs={"exception": Exception("Page not Found")},
-        ),
+        path("400/", default_views.bad_request, kwargs={"exception": Exception("Bad Request!")}),
+        path("403/", default_views.permission_denied, kwargs={"exception": Exception("Permission Denied")}),
+        path("404/", default_views.page_not_found, kwargs={"exception": Exception("Page not Found")}),
         path("500/", default_views.server_error),
     ]
+
     if "debug_toolbar" in settings.INSTALLED_APPS:
         import debug_toolbar
 
@@ -108,4 +94,3 @@ if settings.DEBUG:
             path("__debug__/", include(debug_toolbar.urls)),
             *urlpatterns,
         ]
-

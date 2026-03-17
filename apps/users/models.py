@@ -17,7 +17,7 @@ class User(AbstractUser, BaseModel):
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=20, unique=True)
 
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="customer")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="customer", db_index=True)
     is_verified = models.BooleanField(default=False)
 
     USERNAME_FIELD = "email"
@@ -39,6 +39,9 @@ class User(AbstractUser, BaseModel):
 
     def __str__(self):
         return f"{self.email} ({self.role})"
+
+    class Meta:
+        ordering = ["-created_at"]
 
 
 class Profile(BaseModel):
