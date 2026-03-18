@@ -77,6 +77,7 @@ THIRD_PARTY_APPS = [
     'allauth.socialaccount.providers.google',
     'dj_rest_auth',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'dj_rest_auth.registration',
     "allauth",
     "allauth.account",
@@ -250,11 +251,19 @@ DJANGO_ADMIN_FORCE_ALLAUTH = env.bool("DJANGO_ADMIN_FORCE_ALLAUTH", default=Fals
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
 REDIS_SSL = REDIS_URL.startswith("redis://")
 
-# django-allauth
+# ALLAUTH CONFIG
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_UNIQUE_EMAIL = True
+
+ACCOUNT_AUTHENTICATION_METHOD = "email"
 ACCOUNT_LOGIN_METHODS = {"email"}
-ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*", "first_name*", "last_name*"]
-ACCOUNT_ALLOW_REGISTRATION = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
+
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_EMAIL_VERIFICATION = "none"
+
+# VERY IMPORTANT FOR API MODE
+ACCOUNT_ADAPTER = "allauth.account.adapter.DefaultAccountAdapter"
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -283,14 +292,8 @@ SIMPLE_JWT = {
 REST_AUTH = {
     "USE_JWT": True,
     "TOKEN_MODEL": None,
-    'JWT_AUTH_COOKIE': 'access',
-    'JWT_AUTH_REFRESH_COOKIE': 'refresh',
-    "JWT_AUTH_HTTPONLY": False,
-    'REGISTER_SERIALIZER': 'apps.users.api.serializers.CustomRegisterSerializer',
-    'LOGIN_SERIALIZER': 'apps.users.api.serializers.CustomLoginSerializer',
-    'SIGNUP_FIELDS': {
-        'username': {'required': False},
-    }
+    "REGISTER_SERIALIZER": "apps.users.api.serializers.CustomRegisterSerializer",
+    "LOGIN_SERIALIZER": "apps.users.api.serializers.CustomLoginSerializer",
 }
 
 REST_AUTH_REGISTER_PERMISSION_CLASSES = [
@@ -302,11 +305,6 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'API for cargo owners, and drivers',
     'VERSION': '1.0.0',
 }
-
-# Disable email verification
-ACCOUNT_EMAIL_VERIFICATION = "none"
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_AUTHENTICATION_METHOD = "email"
 
 INTERNAL_IPS = [
     "127.0.0.1",

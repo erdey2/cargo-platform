@@ -15,16 +15,15 @@ class User(AbstractUser, BaseModel):
     )
 
     email = models.EmailField(unique=True)
-    phone = models.CharField(max_length=20, unique=True)
+    phone = models.CharField(max_length=20, unique=True, null=True, blank=True)
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="customer", db_index=True)
     is_verified = models.BooleanField(default=False)
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["phone"]
+    REQUIRED_FIELDS = []
 
     def save(self, *args, **kwargs):
-        # Ensure admin users are controlled properly
         if self.is_superuser:
             self.is_staff = True
         super().save(*args, **kwargs)
