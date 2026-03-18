@@ -3,6 +3,7 @@ from dj_rest_auth.serializers import LoginSerializer
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from ..models import Profile
+from django.contrib.gis.geos import Point
 
 User = get_user_model()
 
@@ -36,6 +37,8 @@ class CustomLoginSerializer(LoginSerializer):
 class ProfileSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source="user.email", read_only=True)
     role = serializers.CharField(source="user.role", read_only=True)
+    latitude = serializers.FloatField(write_only=True, required=False)
+    longitude = serializers.FloatField(write_only=True, required=False)
 
     class Meta:
         model = Profile
@@ -49,4 +52,22 @@ class ProfileSerializer(serializers.ModelSerializer):
             "city",
             "country",
             "location",
+            "latitude",
+            "longitude",
         ]
+        read_only_fields = ["location"]
+
+    def update(self, instance, validated_data):
+        latitude = validated_data.pop("latitude", None)
+        longitude = validated_data.pop("longitude", None)
+
+        # Update normal fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        # Update location if provided
+        if latitude is not None and longitude is not None:
+            instance.location = Point(longitude, latitude)
+
+        instance.save()
+        return instance

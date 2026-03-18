@@ -68,7 +68,6 @@ class User(AbstractUser, BaseModel):
     class Meta:
         ordering = ["-created_at"]
 
-
 class Profile(BaseModel):
     user = models.OneToOneField(
         User,
