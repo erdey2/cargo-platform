@@ -3,6 +3,7 @@ from ..models import VehicleType, Vehicle, VehicleDocument
 from .serializers import VehicleTypeSerializer, VehicleSerializer, VehicleDocumentSerializer
 from apps.drivers.models import DriverProfile
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from core.permissions import IsDriver
 
 class VehicleTypeViewSet(viewsets.ModelViewSet):
     queryset = VehicleType.objects.all()
@@ -12,7 +13,7 @@ class VehicleTypeViewSet(viewsets.ModelViewSet):
 class VehicleViewSet(viewsets.ModelViewSet):
     queryset = Vehicle.objects.all()
     serializer_class = VehicleSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsDriver]
 
     def get_queryset(self):
 
