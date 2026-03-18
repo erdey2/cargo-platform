@@ -1,14 +1,13 @@
 from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
 from ..models import VehicleType, Vehicle, VehicleDocument
 from .serializers import VehicleTypeSerializer, VehicleSerializer, VehicleDocumentSerializer
 from apps.drivers.models import DriverProfile
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
-class VehicleTypeViewSet(viewsets.ReadOnlyModelViewSet):
-
+class VehicleTypeViewSet(viewsets.ModelViewSet):
     queryset = VehicleType.objects.all()
     serializer_class = VehicleTypeSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAdminUser]
 
 class VehicleViewSet(viewsets.ModelViewSet):
     queryset = Vehicle.objects.all()

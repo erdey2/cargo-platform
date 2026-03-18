@@ -2,6 +2,7 @@ from dj_rest_auth.registration.serializers import RegisterSerializer
 from dj_rest_auth.serializers import LoginSerializer
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from ..models import Profile
 
 User = get_user_model()
 
@@ -31,3 +32,21 @@ class CustomLoginSerializer(LoginSerializer):
 
     def validate(self, attrs):
         return super().validate(attrs)
+
+class ProfileSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(source="user.email", read_only=True)
+    role = serializers.CharField(source="user.role", read_only=True)
+
+    class Meta:
+        model = Profile
+        fields = [
+            "id",
+            "email",
+            "role",
+            "full_name",
+            "profile_image",
+            "address",
+            "city",
+            "country",
+            "location",
+        ]

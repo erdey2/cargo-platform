@@ -55,12 +55,7 @@ class Profile(BaseModel):
     city = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, blank=True)
 
-    location = gis_models.PointField(
-        geography=True,
-        null=True,
-        blank=True,
-        spatial_index=True
-    )
+    location = gis_models.PointField(geography=True, null=True, blank=True, spatial_index=True)
 
     def __str__(self):
         return self.full_name or self.user.email
