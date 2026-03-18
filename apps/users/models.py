@@ -69,22 +69,16 @@ class User(AbstractUser, BaseModel):
         ordering = ["-created_at"]
 
 class Profile(BaseModel):
-    user = models.OneToOneField(
-        User,
-        on_delete=models.CASCADE,
-        related_name="profile"
-    )
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     full_name = models.CharField(max_length=255, blank=True)
     profile_image = models.ImageField(upload_to="profiles/", blank=True)
     address = models.TextField(blank=True)
     city = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, blank=True)
-
     location = gis_models.PointField(geography=True, null=True, blank=True, spatial_index=True)
 
     def __str__(self):
         return self.full_name or self.user.email
-
 
 @receiver(post_save, sender=User)
 def create_profile(sender, instance, created, **kwargs):

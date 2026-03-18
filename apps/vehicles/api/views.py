@@ -1,9 +1,15 @@
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from rest_framework import viewsets
 from ..models import VehicleType, Vehicle, VehicleDocument
 from .serializers import VehicleTypeSerializer, VehicleSerializer, VehicleDocumentSerializer
 from apps.drivers.models import DriverProfile
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from core.permissions import IsDriver
+from django.contrib.auth import get_user_model
+
+
+User = get_user_model()
 
 class VehicleTypeViewSet(viewsets.ModelViewSet):
     queryset = VehicleType.objects.all()
@@ -15,22 +21,19 @@ class VehicleViewSet(viewsets.ModelViewSet):
     serializer_class = VehicleSerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
+    def get_driver(self):
+        driver, _ = DriverProfile.objects.get_or_create(user=self.request.user)
+        return driver
+
     def get_queryset(self):
-
-        driver = DriverProfile.objects.get(user=self.request.user)
-
-        return Vehicle.objects.filter(driver=driver)
+        return Vehicle.objects.filter(driver=self.get_driver())
 
     def perform_create(self, serializer):
-
-        driver = DriverProfile.objects.get(user=self.request.user)
-
-        serializer.save(driver=driver)
+        serializer.save(driver=self.get_driver())
 
 class VehicleDocumentViewSet(viewsets.ModelViewSet):
-
     serializer_class = VehicleDocumentSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsDriver]
 
     def get_queryset(self):
 

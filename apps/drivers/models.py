@@ -16,7 +16,7 @@ class DriverProfile(BaseModel):
     national_id = models.CharField(max_length=100)
 
     driver_license = models.CharField(max_length=100)
-    license_expiry = models.DateField()
+    license_expiry = models.DateField(null=True, blank=True)
 
     verification_status = models.CharField(
         max_length=20,

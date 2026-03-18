@@ -34,11 +34,6 @@ class CustomLoginSerializer(LoginSerializer):
     def validate(self, attrs):
         return super().validate(attrs)
 
-from rest_framework import serializers
-from django.contrib.gis.geos import Point
-from ..models import Profile
-
-
 class ProfileSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source="user.email", read_only=True)
     role = serializers.CharField(source="user.role", read_only=True)
