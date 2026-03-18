@@ -34,11 +34,18 @@ class CustomLoginSerializer(LoginSerializer):
     def validate(self, attrs):
         return super().validate(attrs)
 
+from rest_framework import serializers
+from django.contrib.gis.geos import Point
+from ..models import Profile
+
+
 class ProfileSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source="user.email", read_only=True)
     role = serializers.CharField(source="user.role", read_only=True)
-    latitude = serializers.FloatField(write_only=True, required=False)
-    longitude = serializers.FloatField(write_only=True, required=False)
+    latitude = serializers.SerializerMethodField()
+    longitude = serializers.SerializerMethodField()
+    latitude_input = serializers.FloatField(write_only=True, required=False)
+    longitude_input = serializers.FloatField(write_only=True, required=False)
 
     class Meta:
         model = Profile
@@ -54,20 +61,28 @@ class ProfileSerializer(serializers.ModelSerializer):
             "location",
             "latitude",
             "longitude",
+            "latitude_input",
+            "longitude_input"
         ]
         read_only_fields = ["location"]
 
-    def update(self, instance, validated_data):
-        latitude = validated_data.pop("latitude", None)
-        longitude = validated_data.pop("longitude", None)
+    def get_latitude(self, obj):
+        return obj.location.y if obj.location else None
 
-        # Update normal fields
+    def get_longitude(self, obj):
+        return obj.location.x if obj.location else None
+
+    def update(self, instance, validated_data):
+        lat = validated_data.pop("latitude_input", None)
+        lng = validated_data.pop("longitude_input", None)
+
+        # update normal fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
-        # Update location if provided
-        if latitude is not None and longitude is not None:
-            instance.location = Point(longitude, latitude)
+        # update location
+        if lat is not None and lng is not None:
+            instance.location = Point(lng, lat)
 
         instance.save()
         return instance
