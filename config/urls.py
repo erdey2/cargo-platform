@@ -12,29 +12,43 @@ from drf_spectacular.utils import extend_schema
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 
 # dj-rest-auth
-from dj_rest_auth.views import LoginView, LogoutView, PasswordChangeView, PasswordResetView, PasswordResetConfirmView, UserDetailsView
-from dj_rest_auth.registration.views import RegisterView, ResendEmailVerificationView, VerifyEmailView
+from dj_rest_auth.views import (
+    LoginView, LogoutView, PasswordChangeView,
+    PasswordResetView, PasswordResetConfirmView, UserDetailsView
+)
+from dj_rest_auth.registration.views import (
+    RegisterView, ResendEmailVerificationView, VerifyEmailView
+)
 
+AUTH_TAG = ["Authentication"]
+
+# JWT Views
 TokenObtainPairView = extend_schema(
-    tags=["Authentication & Users"],
+    tags=AUTH_TAG,
     summary="Login (JWT)",
     description="Get access and refresh tokens using email and password.",
 )(TokenObtainPairView)
 
 TokenRefreshView = extend_schema(
-    tags=["Authentication & Users"],
+    tags=AUTH_TAG,
     summary="Refresh Token",
 )(TokenRefreshView)
 
 TokenVerifyView = extend_schema(
-    tags=["Authentication & Users"],
+    tags=AUTH_TAG,
     summary="Verify Token",
 )(TokenVerifyView)
 
-LoginView = extend_schema(tags=["Authentication & Users"])(LoginView)
-LogoutView = extend_schema(tags=["Authentication & Users"])(LogoutView)
-RegisterView = extend_schema(tags=["Authentication & Users"])(RegisterView)
-UserDetailsView = extend_schema(tags=["Authentication & Users"])(UserDetailsView)
+# dj-rest-auth Views
+LoginView = extend_schema(tags=AUTH_TAG)(LoginView)
+LogoutView = extend_schema(tags=AUTH_TAG)(LogoutView)
+RegisterView = extend_schema(tags=AUTH_TAG)(RegisterView)
+UserDetailsView = extend_schema(tags=AUTH_TAG)(UserDetailsView)
+PasswordChangeView = extend_schema(tags=AUTH_TAG)(PasswordChangeView)
+PasswordResetView = extend_schema(tags=AUTH_TAG)(PasswordResetView)
+PasswordResetConfirmView = extend_schema(tags=AUTH_TAG)(PasswordResetConfirmView)
+ResendEmailVerificationView = extend_schema(tags=AUTH_TAG)(ResendEmailVerificationView)
+VerifyEmailView = extend_schema(tags=AUTH_TAG)(VerifyEmailView)
 
 # URL Patterns
 urlpatterns = [
@@ -56,7 +70,7 @@ urlpatterns = [
     path("api/auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("api/auth/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
 
-    # dj-rest-auth (Optional but useful)
+    # dj-rest-auth
     path("api/auth/login/", LoginView.as_view(), name="rest_login"),
     path("api/auth/logout/", LogoutView.as_view(), name="rest_logout"),
     path("api/auth/user/", UserDetailsView.as_view(), name="user_details"),
