@@ -27,6 +27,14 @@ class CustomRegisterSerializer(RegisterSerializer):
         data["role"] = self.validated_data.get("role")
         return data
 
+    def save(self, request):
+        user = super().save(request)
+        user.phone = self.validated_data.get("phone")
+        user.role = self.validated_data.get("role")
+
+        user.save()
+        return user
+
 class CustomLoginSerializer(LoginSerializer):
     username = None
     email = serializers.EmailField(required=True)
