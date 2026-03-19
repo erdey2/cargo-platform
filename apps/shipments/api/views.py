@@ -4,6 +4,7 @@ from ..models import Shipment, CargoType, ShipmentStatusHistory
 from .serializers import ShipmentSerializer, CargoTypeSerializer, ShipmentStatusHistorySerializer
 from apps.matching.services.matching import MatchingService
 from apps.pricing.services.pricing_service import PriceCalculator
+from core.permissions import IsAdminOrReadOnly
 
 
 class ShipmentViewSet(viewsets.ModelViewSet):
@@ -42,11 +43,10 @@ class ShipmentViewSet(viewsets.ModelViewSet):
         MatchingService.match_driver(shipment)
 
 
-class CargoTypeViewSet(viewsets.ReadOnlyModelViewSet):
-
+class CargoTypeViewSet(viewsets.ModelViewSet):
     queryset = CargoType.objects.all()
     serializer_class = CargoTypeSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
 
 class ShipmentStatusHistoryViewSet(viewsets.ReadOnlyModelViewSet):
 
