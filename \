@@ -1,0 +1,9 @@
+DJANGO_SETTINGS_MODULE=config.settings.local
+
+DJANGO_SECRET_KEY=dev-secret-key
+
+DB_NAME=cargo_db
+DB_USER=cargo_user
+DB_PASSWORD=User@12345
+DB_HOST=localhost
+DB_PORT=5432

@@ -13,11 +13,7 @@ class VehicleType(models.Model):
         return self.name
 
 class Vehicle(models.Model):
-    driver = models.ForeignKey(
-        DriverProfile,
-        on_delete=models.CASCADE,
-        related_name="vehicles"
-    )
+    driver = models.ForeignKey(DriverProfile, on_delete=models.CASCADE, related_name="vehicles")
     vehicle_type = models.ForeignKey(VehicleType, on_delete=models.CASCADE)
     plate_number = models.CharField(max_length=20, unique=True)
     capacity_weight = models.FloatField()
