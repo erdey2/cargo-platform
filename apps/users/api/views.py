@@ -34,7 +34,7 @@ class CustomerRegistrationView(APIView):
     def post(self, request):
         serializer = CustomerRegisterSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(request=request)
             return Response({"message": "Customer registered successfully"}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -49,6 +49,6 @@ class DriverRegistrationView(APIView):
     def post(self, request):
         serializer = DriverRegisterSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(request=request)
             return Response({"message": "Driver registered successfully"}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

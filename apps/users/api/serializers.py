@@ -102,6 +102,10 @@ class CustomerRegisterSerializer(RegisterSerializer):
     latitude_input = serializers.FloatField(write_only=True, required=False)
     longitude_input = serializers.FloatField(write_only=True, required=False)
 
+    @property
+    def _has_phone_field(self):
+        return False
+
     def get_cleaned_data(self):
         data = super().get_cleaned_data()
         data.update({
@@ -151,6 +155,10 @@ class DriverRegisterSerializer(RegisterSerializer):
     driver_license = serializers.CharField(required=True)
     vehicle = VehicleNestedSerializer(required=True)
 
+    @property
+    def _has_phone_field(self):
+        return False
+
     def get_cleaned_data(self):
         data = super().get_cleaned_data()
         data.update({
@@ -174,13 +182,13 @@ class DriverRegisterSerializer(RegisterSerializer):
         vehicle_type = vehicle_data["vehicle_type"]
 
         with transaction.atomic():
-            # 1️⃣ Create User
+            # Create User
             user = super().save(request)
             user.phone = data["phone"]
             user.role = "driver"
             user.save()
 
-            # 2️⃣ Update Profile
+            # Update Profile
             profile = user.profile
             profile.full_name = data.get("full_name")
             profile.address = data.get("address", "")
@@ -192,7 +200,7 @@ class DriverRegisterSerializer(RegisterSerializer):
                 profile.location = Point(lng, lat)
             profile.save()
 
-            # 3️⃣ Create DriverProfile
+            # Create DriverProfile
             driver_profile, _ = DriverProfile.objects.get_or_create(
                 user=user,
                 defaults={
@@ -200,7 +208,7 @@ class DriverRegisterSerializer(RegisterSerializer):
                     "driver_license": data["driver_license"]
                 }
             )
-            # 4️⃣ Create Vehicle
+            # Create Vehicle
             Vehicle.objects.create(
                 driver=driver_profile,
                 vehicle_type=vehicle_type,
@@ -209,5 +217,4 @@ class DriverRegisterSerializer(RegisterSerializer):
                 capacity_volume=vehicle_type.max_volume,
                 verification_status=False
             )
-
         return user
