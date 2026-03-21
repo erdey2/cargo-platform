@@ -4,7 +4,7 @@ from .models import User
 
 
 class CustomRolePermissionsUserAdmin(RolePermissionsUserAdmin):
-    ordering = ('email',)  # FIX HERE
+    ordering = ('email',)
 
 
 admin.site.unregister(User)
