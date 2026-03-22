@@ -1,3 +1,4 @@
 from django.contrib import admin
+from .models import DriverProfile, DriverDocument, DriverEarning
 
-# Register your models here.
+admin.register(DriverProfile, DriverDocument, DriverEarning)
