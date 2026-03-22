@@ -37,6 +37,7 @@ class ShipmentSerializer(serializers.ModelSerializer):
             "assigned_at",
             "picked_up_at",
             "delivered_at",
+            "estimated_price",
             "final_price",
         ]
 

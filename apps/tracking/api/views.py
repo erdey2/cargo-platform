@@ -9,12 +9,37 @@ from ..models import DriverLocation
 from .serializers import DriverLocationSerializer
 from apps.drivers.models import DriverProfile
 from core.permissions import IsDriver
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 
+@extend_schema(tags=["Driver Location"])
 class UpdateDriverLocationView(APIView):
 
     permission_classes = [IsAuthenticated, IsDriver]
 
+    @extend_schema(
+        summary="Update driver location",
+        description=(
+            "Update the current location of the authenticated driver.\n\n"
+            "This will:\n"
+            "- Validate latitude and longitude\n"
+            "- Update or create driver location\n"
+            "- Mark driver as online\n"
+        ),
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "lat": {"type": "number", "example": 9.03},
+                    "lng": {"type": "number", "example": 38.74},
+                    "heading": {"type": "number", "example": 90},
+                    "speed": {"type": "number", "example": 60},
+                },
+                "required": ["lat", "lng"],
+            }
+        },
+        responses={200: DriverLocationSerializer},
+    )
     def post(self, request):
 
         try:
@@ -22,7 +47,6 @@ class UpdateDriverLocationView(APIView):
         except DriverProfile.DoesNotExist:
             raise ValidationError("Driver profile not found.")
 
-        # Validate input
         lat = request.data.get("lat")
         lng = request.data.get("lng")
 
@@ -35,7 +59,6 @@ class UpdateDriverLocationView(APIView):
         except ValueError:
             raise ValidationError("Invalid latitude or longitude format.")
 
-        # Correct GeoDjango order: (longitude, latitude)
         location = Point(lng, lat)
 
         driver_location, _ = DriverLocation.objects.update_or_create(
@@ -51,10 +74,25 @@ class UpdateDriverLocationView(APIView):
         serializer = DriverLocationSerializer(driver_location)
         return Response(serializer.data)
 
+@extend_schema(tags=["Driver Location"])
 class DriverLocationView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Get driver location",
+        description="Retrieve the current location of a specific driver.",
+        parameters=[
+            OpenApiParameter(
+                name="driver_id",
+                description="ID of the driver",
+                required=True,
+                type=int,
+                location=OpenApiParameter.PATH,
+            )
+        ],
+        responses={200: DriverLocationSerializer},
+    )
     def get(self, request, driver_id):
 
         try:
@@ -65,10 +103,39 @@ class DriverLocationView(APIView):
         serializer = DriverLocationSerializer(location)
         return Response(serializer.data)
 
+@extend_schema(tags=["Driver Location"])
 class NearbyDriversView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Find nearby drivers",
+        description=(
+            "Find drivers within a 10km radius from a given location.\n\n"
+            "Filters:\n"
+            "- Only available drivers\n"
+            "- Only online drivers\n"
+            "- Sorted by distance\n"
+            "- Maximum 10 drivers returned"
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="lat",
+                description="Latitude",
+                required=True,
+                type=float,
+                location=OpenApiParameter.QUERY,
+            ),
+            OpenApiParameter(
+                name="lng",
+                description="Longitude",
+                required=True,
+                type=float,
+                location=OpenApiParameter.QUERY,
+            ),
+        ],
+        responses={200: DriverLocationSerializer(many=True)},
+    )
     def get(self, request):
 
         lat = request.query_params.get("lat")

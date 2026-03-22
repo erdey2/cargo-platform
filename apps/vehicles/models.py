@@ -21,12 +21,14 @@ class Vehicle(models.Model):
     verification_status = models.BooleanField(default=False)
 
     def __str__(self):
-        return self.plate_number
-
+        return f"{self.vehicle_type} - {self.plate_number}  - {self.driver}"
 
 class VehicleDocument(BaseModel):
     vehicle = models.ForeignKey (Vehicle, on_delete=models.CASCADE, related_name="documents")
     document_name = models.CharField(max_length=100)
     file = models.FileField(upload_to="vehicle_documents/")
     is_verified = models.BooleanField(default=False)
+
+    def __str__(self):
+        return self.document_name
 
