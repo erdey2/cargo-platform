@@ -47,7 +47,9 @@ class Shipment(BaseModel):
 
     estimated_price = models.DecimalField(
         max_digits=10,
-        decimal_places=2
+        decimal_places=2,
+        null=True,
+        blank=True
     )
 
     final_price = models.DecimalField(

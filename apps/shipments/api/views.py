@@ -1,58 +1,43 @@
 from rest_framework import viewsets
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from ..models import Shipment, CargoType, ShipmentStatusHistory
 from .serializers import ShipmentSerializer, CargoTypeSerializer, ShipmentStatusHistorySerializer
 from apps.matching.services.matching import MatchingService
 from apps.pricing.services.pricing_service import PriceCalculator
 from core.permissions import IsAdminOrReadOnly
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiExample
+
 
 @extend_schema(
     tags=["Shipments"]
 )
 @extend_schema_view(
-    list=extend_schema(
-        summary="List shipments",
-        description="Retrieve all shipments. Admins see all shipments, customers see only their own.",
-        responses={200: ShipmentSerializer(many=True)}
-    ),
     create=extend_schema(
         summary="Create shipment",
-        description=(
-            "Create a new shipment.\n\n"
-            "System will automatically:\n"
-            "- Assign the current user as customer\n"
-            "- Calculate estimated price\n"
-            "- Create shipment status history (created)\n"
-            "- Trigger driver matching process"
-        ),
-        request=ShipmentSerializer,
+        description="Create a shipment and trigger pricing + driver matching.",
+        examples=[
+            OpenApiExample(
+                "Shipment Example",
+                value={
+                    "pickup_address": "Bole",
+                    "dropoff_address": "Piassa",
+                    "pickup_lat": 9.03,
+                    "pickup_lng": 38.74,
+                    "dropoff_lat": 9.05,
+                    "dropoff_lng": 38.76,
+                    "weight": 50,
+                    "volume": 2.5,
+                    "cargo_type": 1,
+                    "description": "Electronics"
+                },
+                request_only=True
+            )
+        ],
         responses={201: ShipmentSerializer}
-    ),
-    retrieve=extend_schema(
-        summary="Retrieve shipment",
-        description="Get details of a specific shipment.",
-        responses={200: ShipmentSerializer}
-    ),
-    update=extend_schema(
-        summary="Update shipment",
-        description="Update shipment details.",
-        request=ShipmentSerializer,
-        responses={200: ShipmentSerializer}
-    ),
-    partial_update=extend_schema(
-        summary="Partially update shipment",
-        request=ShipmentSerializer,
-        responses={200: ShipmentSerializer}
-    ),
-    destroy=extend_schema(
-        summary="Delete shipment",
-        description="Delete a shipment.",
-        responses={204: None}
-    ),
+    )
 )
 class ShipmentViewSet(viewsets.ModelViewSet):
-
     serializer_class = ShipmentSerializer
     permission_classes = [IsAuthenticated]
 
@@ -65,24 +50,23 @@ class ShipmentViewSet(viewsets.ModelViewSet):
         return Shipment.objects.filter(customer=user)
 
     def perform_create(self, serializer):
-
-        # Create shipment
         shipment = serializer.save(
-            customer=self.request.user
+            customer=self.request.user,
+            status="matching"
         )
 
-        # Calculate estimated price
-        shipment.estimated_price = PriceCalculator.calculate_estimated_price(shipment)
-        shipment.save()
+        try:
+            shipment.estimated_price = PriceCalculator.calculate_estimated_price(shipment)
+            shipment.save()
+        except Exception:
+            raise ValidationError("Failed to calculate price")
 
-        # Save status history
         ShipmentStatusHistory.objects.create(
             shipment=shipment,
-            status="created",
+            status=shipment.status,
             changed_by=self.request.user
         )
 
-        # Start driver matching
         MatchingService.match_driver(shipment)
 
 @extend_schema(
@@ -146,6 +130,9 @@ class ShipmentStatusHistoryViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         shipment_id = self.kwargs.get("shipment_id")
+
+        if not shipment_id:
+            raise ValidationError("shipment_id is required")
 
         return ShipmentStatusHistory.objects.filter(
             shipment_id=shipment_id
