@@ -8,9 +8,18 @@ from ..models import Profile
 from apps.drivers.api.serializers import DriverRegistrationSerializer
 
 
+@extend_schema(
+    tags=["Authentication"],
+    summary="Register user",
+    description="Create a new user account.",
+    request=RegisterSerializer,
+    responses={201: RegisterSerializer},
+)
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
+
+@extend_schema(tags=["Profiles"])
 class ProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = ProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -18,17 +27,51 @@ class ProfileView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         return self.request.user.profile
 
+    @extend_schema(
+        summary="Get my profile",
+        description="Retrieve the profile of the currently authenticated user.",
+        responses={200: ProfileSerializer},
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Update my profile",
+        description="Update the profile of the current user.",
+        request=ProfileSerializer,
+        responses={200: ProfileSerializer},
+    )
+    def put(self, request, *args, **kwargs):
+        return super().put(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Partially update my profile",
+        request=ProfileSerializer,
+        responses={200: ProfileSerializer},
+    )
+    def patch(self, request, *args, **kwargs):
+        return super().patch(request, *args, **kwargs)
+
+@extend_schema(tags=["Profiles"])
 class ProfileListView(generics.ListAPIView):
     serializer_class = ProfileSerializer
     permission_classes = [permissions.IsAdminUser]
-
     queryset = Profile.objects.all()
 
-# Customer Registration
+    @extend_schema(
+        summary="List all profiles (Admin)",
+        description="Retrieve all user profiles.",
+        responses={200: ProfileSerializer(many=True)},
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
 @extend_schema(
     tags=["Authentication"],
     summary="Customer Registration",
-    request=CustomerRegisterSerializer
+    description="Register a new customer account.",
+    request=CustomerRegisterSerializer,
+    responses={201: {"type": "object", "properties": {"message": {"type": "string"}}}},
 )
 class CustomerRegistrationView(APIView):
     permission_classes = [AllowAny]
@@ -37,15 +80,18 @@ class CustomerRegistrationView(APIView):
         serializer = CustomerRegisterSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(request=request)
-            return Response({"message": "Customer registered successfully"}, status=status.HTTP_201_CREATED)
+            return Response(
+                {"message": "Customer registered successfully"},
+                status=status.HTTP_201_CREATED
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @extend_schema(
     tags=["Authentication"],
     summary="Driver Registration",
+    description="Register a new driver with profile, driver info, and vehicle.",
     request=DriverRegistrationSerializer,
     responses={201: {"type": "object", "properties": {"message": {"type": "string"}}}},
-    description="Register a new driver with profile, driver info, and vehicle",
     examples=[
         OpenApiExample(
             "Driver Registration Example",
@@ -75,5 +121,8 @@ class DriverRegistrationView(APIView):
         serializer = DriverRegisterSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(request=request)
-            return Response({"message": "Driver registered successfully"}, status=status.HTTP_201_CREATED)
+            return Response(
+                {"message": "Driver registered successfully"},
+                status=status.HTTP_201_CREATED
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
