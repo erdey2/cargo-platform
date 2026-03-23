@@ -8,20 +8,37 @@ from apps.pricing.services.pricing_service import PriceCalculator
 from core.permissions import IsAdminOrReadOnly
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiExample
 
-
 @extend_schema(
     tags=["Shipments"]
 )
 @extend_schema_view(
+    list=extend_schema(
+        summary="List shipments",
+        description=(
+            "Retrieve shipments.\n\n"
+            "- Admins: see all shipments\n"
+            "- Customers: see only their own shipments"
+        ),
+        responses={200: ShipmentSerializer(many=True)},
+    ),
+
     create=extend_schema(
         summary="Create shipment",
-        description="Create a shipment and trigger pricing + driver matching.",
+        description=(
+            "Create a new shipment.\n\n"
+            "System automatically:\n"
+            "- Assigns current user as customer\n"
+            "- Sets status to `matching`\n"
+            "- Calculates estimated price\n"
+            "- Creates status history\n"
+            "- Triggers driver matching"
+        ),
         examples=[
             OpenApiExample(
-                "Shipment Example",
+                "Shipment Request Example",
                 value={
-                    "pickup_address": "Bole",
-                    "dropoff_address": "Piassa",
+                    "pickup_address": "Bole, Addis Ababa",
+                    "dropoff_address": "Piassa, Addis Ababa",
                     "pickup_lat": 9.03,
                     "pickup_lng": 38.74,
                     "dropoff_lat": 9.05,
@@ -31,11 +48,62 @@ from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiExam
                     "cargo_type": 1,
                     "description": "Electronics"
                 },
-                request_only=True
-            )
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Shipment Response Example",
+                value={
+                    "id": 1,
+                    "customer": 5,
+                    "pickup_address": "Bole, Addis Ababa",
+                    "dropoff_address": "Piassa, Addis Ababa",
+                    "pickup_latitude": 9.03,
+                    "pickup_longitude": 38.74,
+                    "dropoff_latitude": 9.05,
+                    "dropoff_longitude": 38.76,
+                    "weight": 50,
+                    "volume": 2.5,
+                    "cargo_type": 1,
+                    "description": "Electronics",
+                    "status": "matching",
+                    "estimated_price": "1500.00",
+                    "final_price": None,
+                    "assigned_at": None,
+                    "picked_up_at": None,
+                    "delivered_at": None,
+                    "created_at": "2026-03-23T10:00:00Z"
+                },
+                response_only=True,
+            ),
         ],
-        responses={201: ShipmentSerializer}
-    )
+        responses={201: ShipmentSerializer},
+    ),
+
+    retrieve=extend_schema(
+        summary="Retrieve shipment",
+        description="Get detailed information about a specific shipment.",
+        responses={200: ShipmentSerializer},
+    ),
+
+    update=extend_schema(
+        summary="Update shipment",
+        description="Update shipment details (only allowed before assignment).",
+        request=ShipmentSerializer,
+        responses={200: ShipmentSerializer},
+    ),
+
+    partial_update=extend_schema(
+        summary="Partially update shipment",
+        description="Update specific fields of a shipment.",
+        request=ShipmentSerializer,
+        responses={200: ShipmentSerializer},
+    ),
+
+    destroy=extend_schema(
+        summary="Delete shipment",
+        description="Delete a shipment (only if not yet assigned).",
+        responses={204: None},
+    ),
 )
 class ShipmentViewSet(viewsets.ModelViewSet):
     serializer_class = ShipmentSerializer
