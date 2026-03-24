@@ -96,19 +96,27 @@ class DriverResponseView(APIView):
         except DriverOffer.DoesNotExist:
             raise NotFound("Offer not found")
 
-
 class DriverOfferViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = DriverOfferSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
-
-        if not hasattr(user, "driver_profile"):
-            raise PermissionDenied("Only drivers can view offers")
-
-        queryset = DriverOffer.objects.filter(driver__user=user)
         status_param = self.request.query_params.get("status")
+
+        # Admins can see all offers
+        if user.is_staff or user.is_superuser:
+            queryset = DriverOffer.objects.all()
+
+        # Drivers see only their own offers
+        elif hasattr(user, "driver_profile"):
+            queryset = DriverOffer.objects.filter(driver__user=user)
+            
+        # Other roles (e.g., customers) are denied
+        else:
+            raise PermissionDenied("Only drivers and admins can view offers")
+
+        # Apply optional status filter
         if status_param:
             queryset = queryset.filter(status=status_param)
 
