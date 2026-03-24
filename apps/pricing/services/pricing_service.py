@@ -1,7 +1,5 @@
-from django.contrib.gis.db.models.functions import Distance
-from django.contrib.gis.geos import Point
-from decimal import Decimal
-
+from decimal import Decimal, ROUND_HALF_UP
+from osrm_service import OSRMService
 
 class PriceCalculator:
 
@@ -11,31 +9,57 @@ class PriceCalculator:
 
     @staticmethod
     def calculate_estimated_price(shipment):
+        distance_m = shipment.pickup_location.distance(shipment.dropoff_location)
 
-        pickup = shipment.pickup_location
-        dropoff = shipment.dropoff_location
+        # Convert to Decimal safely
+        distance_km = Decimal(str(distance_m)) / Decimal("1000")
 
-        distance_km = pickup.distance(dropoff) * 100  # approximate km
+        # Distance-based pricing tiers
+        if distance_km < 5:
+            rate = Decimal("8")
+        elif distance_km < 20:
+            rate = Decimal("10")
+        else:
+            rate = Decimal("15")
 
-        distance_cost = Decimal(distance_km) * PriceCalculator.PRICE_PER_KM
-        weight_cost = Decimal(shipment.weight) * PriceCalculator.WEIGHT_RATE
+        distance_cost = distance_km * rate
 
-        total = (
-            PriceCalculator.BASE_FEE +
-            distance_cost +
-            weight_cost
-        )
+        # Weight cost
+        weight_cost = Decimal(str(shipment.weight)) * PriceCalculator.WEIGHT_RATE
 
-        return round(total, 2)
+        total = PriceCalculator.BASE_FEE + distance_cost + weight_cost
+
+        # Minimum fare
+        total = max(total, Decimal("100"))
+
+        return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     @staticmethod
     def calculate_final_price(shipment):
-        estimated = shipment.estimated_price
 
-        # Example adjustments
-        extra_fee = Decimal("0")
+        # Get real road distance
+        road_distance_km = OSRMService.get_road_distance(
+            shipment.pickup_location,
+            shipment.dropoff_location
+        )
 
+        distance_km = Decimal(str(road_distance_km))
+
+        # Pricing tiers
+        if distance_km < 5:
+            rate = Decimal("8")
+        elif distance_km < 20:
+            rate = Decimal("10")
+        else:
+            rate = Decimal("15")
+
+        distance_cost = distance_km * rate
+        weight_cost = Decimal(str(shipment.weight)) * PriceCalculator.WEIGHT_RATE
+
+        total = PriceCalculator.BASE_FEE + distance_cost + weight_cost
+
+        # Extra fee
         if shipment.weight > 500:
-            extra_fee += Decimal("100")
+            total += Decimal("100")
 
-        return estimated + extra_fee
+        return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
