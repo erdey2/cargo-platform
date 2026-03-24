@@ -1,0 +1,58 @@
+from django.utils import timezone
+from rest_framework import serializers
+from ..models import DriverOffer
+
+class DriverPreviewSerializer(serializers.Serializer):
+    driver_id = serializers.IntegerField(source="driver.id")
+    driver_email = serializers.EmailField(source="driver.user.email")
+    distance_km = serializers.SerializerMethodField()
+
+    def get_distance_km(self, obj):
+        return round(obj.distance.m / 1000, 2)
+
+class DriverOfferSerializer(serializers.ModelSerializer):
+    driver_email = serializers.EmailField(source="driver.user.email", read_only=True)
+    pickup_address = serializers.CharField(source="shipment.pickup_address", read_only=True)
+    dropoff_address = serializers.CharField(source="shipment.dropoff_address", read_only=True)
+    weight = serializers.FloatField(source="shipment.weight", read_only=True)
+    volume = serializers.FloatField(source="shipment.volume", read_only=True)
+    time_left_seconds = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DriverOffer
+        fields = [
+            "id",
+            "shipment",
+            "driver",
+            "driver_email",
+            "status",
+            "expires_at",
+            "responded_at",
+            "pickup_address",
+            "dropoff_address",
+            "weight",
+            "volume",
+            "time_left_seconds",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "shipment",
+            "driver",
+            "driver_email",
+            "status",
+            "created_at",
+        ]
+
+    def get_time_left_seconds(self, obj):
+        if not obj.expires_at:
+            return 0
+        remaining = (obj.expires_at - timezone.now()).total_seconds()
+        return max(0, int(remaining))
+
+class DriverResponseSerializer(serializers.Serializer):
+    ACTION_CHOICES = (
+        ("accept", "Accept"),
+        ("reject", "Reject"),
+    )
+    action = serializers.ChoiceField(choices=ACTION_CHOICES)

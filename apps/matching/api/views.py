@@ -1,20 +1,22 @@
+from django.db import transaction
 from django.utils import timezone
+from rest_framework import viewsets
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
 from apps.shipments.models import Shipment
 from ..services.matching import MatchingService
 from ..models import DriverOffer
 from apps.assignment.models import Assignment
+from .serializers import DriverPreviewSerializer, DriverOfferSerializer, DriverResponseSerializer
 
 
 class MatchDriversView(APIView):
-
     permission_classes = [IsAuthenticated]
 
     def post(self, request, shipment_id):
-
         try:
             shipment = Shipment.objects.get(id=shipment_id)
         except Shipment.DoesNotExist:
@@ -24,74 +26,90 @@ class MatchDriversView(APIView):
             raise PermissionDenied("Not allowed")
 
         if shipment.status != "matching":
-            return Response(
-                {"error": "Shipment not in matching state"},
-                status=400
-            )
+            return Response({"error": "Shipment not in matching state"}, status=400)
 
         drivers = MatchingService.find_nearest_drivers(shipment)
+        serializer = DriverPreviewSerializer(drivers, many=True)
+        return Response(serializer.data)
 
-        data = [
-            {
-                "driver": d.driver.user.email,
-                "distance_km": round(d.distance.m / 1000, 2)
-            }
-            for d in drivers
-        ]
-
-        return Response(data)
 
 class DriverResponseView(APIView):
-
     permission_classes = [IsAuthenticated]
 
     def post(self, request, offer_id):
+        serializer = DriverResponseSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action = serializer.validated_data["action"]
 
         try:
-            offer = DriverOffer.objects.get(id=offer_id)
+            with transaction.atomic():
+                offer = DriverOffer.objects.select_for_update().get(id=offer_id)
+
+                if offer.driver.user != request.user:
+                    raise PermissionDenied("Not your offer")
+
+                if offer.status != "pending":
+                    return Response({"error": "Already handled"}, status=400)
+
+                if offer.expires_at < timezone.now():
+                    offer.status = "expired"
+                    offer.save()
+                    MatchingService.match_next_driver(offer.shipment)
+                    return Response({"error": "Offer expired"}, status=400)
+
+                if action == "accept":
+                    offer.status = "accepted"
+                    offer.responded_at = timezone.now()
+                    offer.save()
+
+                    if hasattr(offer.shipment, "assignment"):
+                        return Response({"error": "Already assigned"}, status=400)
+
+                    vehicle = offer.driver.vehicles.filter(
+                        capacity_weight__gte=offer.shipment.weight,
+                        capacity_volume__gte=offer.shipment.volume
+                    ).first()
+
+                    Assignment.objects.create(
+                        shipment=offer.shipment,
+                        driver=offer.driver,
+                        vehicle=vehicle
+                    )
+
+                    offer.driver.is_available = False
+                    offer.driver.save(update_fields=["is_available"])
+
+                    shipment = offer.shipment
+                    shipment.status = "assigned"
+                    shipment.save(update_fields=["status"])
+
+                    return Response({"message": "Accepted"})
+
+                elif action == "reject":
+                    offer.status = "rejected"
+                    offer.responded_at = timezone.now()
+                    offer.save()
+
+                    MatchingService.match_next_driver(offer.shipment)
+                    return Response({"message": "Rejected"})
+
         except DriverOffer.DoesNotExist:
             raise NotFound("Offer not found")
 
-        if offer.driver.user != request.user:
-            raise PermissionDenied("Not your offer")
 
-        if offer.status != "pending":
-            return Response({"error": "Already handled"}, status=400)
+class DriverOfferViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = DriverOfferSerializer
+    permission_classes = [IsAuthenticated]
 
-        if offer.expires_at < timezone.now():
-            offer.status = "expired"
-            offer.save()
-            return Response({"error": "Offer expired"}, status=400)
+    def get_queryset(self):
+        user = self.request.user
 
-        action = request.data.get("action")
+        if not hasattr(user, "driver_profile"):
+            raise PermissionDenied("Only drivers can view offers")
 
-        if action == "accept":
+        queryset = DriverOffer.objects.filter(driver__user=user)
+        status_param = self.request.query_params.get("status")
+        if status_param:
+            queryset = queryset.filter(status=status_param)
 
-            offer.status = "accepted"
-            offer.responded_at = timezone.now()
-            offer.save()
-
-            # create FINAL assignment
-            Assignment.objects.create(
-                shipment=offer.shipment,
-                driver=offer.driver,
-                vehicle=offer.driver.vehicles.first()  # improve later
-            )
-
-            shipment = offer.shipment
-            shipment.status = "assigned"
-            shipment.save(update_fields=["status"])
-
-            return Response({"message": "Accepted"})
-
-        elif action == "reject":
-
-            offer.status = "rejected"
-            offer.responded_at = timezone.now()
-            offer.save()
-
-            MatchingService.match_next_driver(offer.shipment)
-
-            return Response({"message": "Rejected"})
-
-        return Response({"error": "Invalid action"}, status=400)
+        return queryset.order_by("-created_at")
