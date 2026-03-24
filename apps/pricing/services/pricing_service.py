@@ -1,5 +1,5 @@
 from decimal import Decimal, ROUND_HALF_UP
-from osrm_service import OSRMService
+from ..services.osrm_service import OSRMService
 
 class PriceCalculator:
 
@@ -37,11 +37,24 @@ class PriceCalculator:
     @staticmethod
     def calculate_final_price(shipment):
 
-        # Get real road distance
-        road_distance_km = OSRMService.get_road_distance(
-            shipment.pickup_location,
-            shipment.dropoff_location
-        )
+        # Use cached distance if available
+        if shipment.road_distance_km:
+            road_distance_km = shipment.road_distance_km
+        else:
+            try:
+                road_distance_km = OSRMService.get_road_distance(
+                    shipment.pickup_location,
+                    shipment.dropoff_location
+                )
+
+                # Save
+                shipment.road_distance_km = road_distance_km
+                shipment.save(update_fields=["road_distance_km"])
+
+            except Exception:
+                road_distance_km = shipment.pickup_location.distance(
+                    shipment.dropoff_location
+                ) / 1000
 
         distance_km = Decimal(str(road_distance_km))
 
@@ -61,5 +74,8 @@ class PriceCalculator:
         # Extra fee
         if shipment.weight > 500:
             total += Decimal("100")
+
+        # Minimum fare
+        total = max(total, Decimal("100"))
 
         return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
