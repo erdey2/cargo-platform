@@ -34,36 +34,31 @@ class MatchingService:
     @staticmethod
     def match_driver(shipment):
 
-        # Ensure shipment is in correct state
         if shipment.status != "matching":
             return None
 
         drivers = MatchingService.find_nearest_drivers(shipment)
 
         if not drivers:
-            print("No drivers found. Waiting for retry...")
+            print("No drivers found")
+            shipment.status = "no_driver"
+            shipment.save()
             return None
 
         for d in drivers:
             driver = d.driver
 
-            # Prevent duplicate offers
-            if DriverOffer.objects.filter(shipment=shipment, driver=driver).exists():
+            if DriverOffer.objects.filter(
+                    shipment=shipment,
+                    driver=driver
+            ).exists():
                 continue
 
-            # create offer
-            offer = DriverOffer.objects.create(
-                shipment=shipment,
-                driver=driver,
-                status="pending",
-                expires_at=timezone.now() + timedelta(seconds=MatchingService.OFFER_TIMEOUT_SECONDS)
-            )
+            offer = MatchingService.create_offer(shipment, driver)
 
             print(f"Offer sent to {driver.user.email}")
-            return offer  # send to first valid driver only
+            return offer
 
-        # If all drivers already tried
-        print("All nearby drivers already received offers")
         return None
 
     @staticmethod
@@ -90,20 +85,28 @@ class MatchingService:
         )
 
         if not drivers:
-            print("No more drivers available currently")
+            print("No more drivers available")
+            shipment.status = "no_driver"
+            shipment.save()
             return None
 
         for d in drivers:
             driver = d.driver
 
-            offer = DriverOffer.objects.create(
-                shipment=shipment,
-                driver=driver,
-                status="pending",
-                expires_at=timezone.now() + timedelta(seconds=MatchingService.OFFER_TIMEOUT_SECONDS)
-            )
+            offer = MatchingService.create_offer(shipment, driver)
 
             print(f"Next offer sent to {driver.user.email}")
             return offer
 
         return None
+
+    @staticmethod
+    def create_offer(shipment, driver):
+        return DriverOffer.objects.create(
+            shipment=shipment,
+            driver=driver,
+            status="pending",
+            expires_at=timezone.now() + timedelta(
+                seconds=MatchingService.OFFER_TIMEOUT_SECONDS
+            )
+        )

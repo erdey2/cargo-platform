@@ -17,6 +17,7 @@ class DriverOfferSerializer(serializers.ModelSerializer):
     weight = serializers.FloatField(source="shipment.weight", read_only=True)
     volume = serializers.FloatField(source="shipment.volume", read_only=True)
     time_left_seconds = serializers.SerializerMethodField()
+    wait_time_seconds = serializers.SerializerMethodField()
 
     class Meta:
         model = DriverOffer
@@ -33,6 +34,7 @@ class DriverOfferSerializer(serializers.ModelSerializer):
             "weight",
             "volume",
             "time_left_seconds",
+            "wait_time_seconds",
             "created_at",
         ]
         read_only_fields = [
@@ -49,6 +51,14 @@ class DriverOfferSerializer(serializers.ModelSerializer):
             return 0
         remaining = (obj.expires_at - timezone.now()).total_seconds()
         return max(0, int(remaining))
+
+    def get_wait_time_seconds(self, obj):
+        """
+        Total time given to the driver before expiration
+        """
+        if not obj.expires_at or not obj.created_at:
+            return 0
+        return int((obj.expires_at - obj.created_at).total_seconds() / 60)
 
 class DriverResponseSerializer(serializers.Serializer):
     ACTION_CHOICES = (

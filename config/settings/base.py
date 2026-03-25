@@ -2,6 +2,7 @@
 from pathlib import Path
 import os, environ, dj_database_url
 from datetime import timedelta
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 
@@ -308,3 +309,10 @@ SPECTACULAR_SETTINGS = {
 INTERNAL_IPS = [
     "127.0.0.1",
 ]
+
+CELERY_BEAT_SCHEDULE = {
+    "expire-offers-every-10-seconds": {
+        "task": "apps.matching.tasks.expire_offers_task",
+        "schedule": 10.0,
+    },
+}

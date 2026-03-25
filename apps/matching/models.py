@@ -36,5 +36,6 @@ class DriverOffer(BaseModel):
 
     class Meta:
         indexes = [
-            models.Index(fields=["shipment", "status"]),
+            models.Index(fields=["shipment", "status", "expires_at"]),
         ]
+        unique_together = ("shipment", "driver")
