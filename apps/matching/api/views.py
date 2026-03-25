@@ -5,14 +5,33 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
 from apps.shipments.models import Shipment
 from ..services.matching import MatchingService
 from ..models import DriverOffer
 from apps.assignment.models import Assignment
 from .serializers import DriverPreviewSerializer, DriverOfferSerializer, DriverResponseSerializer
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse, OpenApiExample
 
 
+@extend_schema(
+    summary="Find nearest drivers for a shipment",
+    description="Returns a list of nearby available drivers for a shipment that is in matching state.",
+    parameters=[
+        OpenApiParameter(
+            name="shipment_id",
+            description="ID of the shipment",
+            required=True,
+            type=int,
+            location="path",
+        ),
+    ],
+    responses={
+        200: DriverPreviewSerializer(many=True),
+        400: OpenApiResponse(description="Shipment not in matching state"),
+        403: OpenApiResponse(description="Not allowed"),
+        404: OpenApiResponse(description="Shipment not found"),
+    },
+)
 class MatchDriversView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -32,7 +51,38 @@ class MatchDriversView(APIView):
         serializer = DriverPreviewSerializer(drivers, many=True)
         return Response(serializer.data)
 
-
+@extend_schema(
+    summary="Driver responds to an offer",
+    description="Allows a driver to accept or reject a delivery offer.",
+    request=DriverResponseSerializer,
+    parameters=[
+        OpenApiParameter(
+            name="offer_id",
+            description="ID of the driver offer",
+            required=True,
+            type=int,
+            location="path",
+        ),
+    ],
+    responses={
+        200: OpenApiResponse(
+            description="Response message",
+            examples=[
+                OpenApiExample(
+                    name="Accepted",
+                    value={"message": "Accepted"},
+                ),
+                OpenApiExample(
+                    name="Rejected",
+                    value={"message": "Rejected"},
+                ),
+            ],
+        ),
+        400: OpenApiResponse(description="Invalid action / already handled / expired"),
+        403: OpenApiResponse(description="Not your offer"),
+        404: OpenApiResponse(description="Offer not found"),
+    },
+)
 class DriverResponseView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -96,6 +146,22 @@ class DriverResponseView(APIView):
         except DriverOffer.DoesNotExist:
             raise NotFound("Offer not found")
 
+@extend_schema(
+    summary="List driver offers",
+    description="Retrieve driver offers. Drivers see their own offers, admins see all offers.",
+    parameters=[
+        OpenApiParameter(
+            name="status",
+            description="Filter offers by status (pending, accepted, rejected, expired)",
+            required=False,
+            type=str,
+        ),
+    ],
+    responses={
+        200: DriverOfferSerializer(many=True),
+        403: OpenApiResponse(description="Only drivers and admins can view offers"),
+    },
+)
 class DriverOfferViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = DriverOfferSerializer
     permission_classes = [IsAuthenticated]

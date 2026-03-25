@@ -34,13 +34,22 @@ class MatchingService:
     @staticmethod
     def match_driver(shipment):
 
+        # Ensure shipment is in correct state
         if shipment.status != "matching":
             return None
 
         drivers = MatchingService.find_nearest_drivers(shipment)
 
+        if not drivers:
+            print("No drivers found. Waiting for retry...")
+            return None
+
         for d in drivers:
             driver = d.driver
+
+            # Prevent duplicate offers
+            if DriverOffer.objects.filter(shipment=shipment, driver=driver).exists():
+                continue
 
             # create offer
             offer = DriverOffer.objects.create(
@@ -50,15 +59,11 @@ class MatchingService:
                 expires_at=timezone.now() + timedelta(seconds=MatchingService.OFFER_TIMEOUT_SECONDS)
             )
 
-            # TODO: send notification later
             print(f"Offer sent to {driver.user.email}")
+            return offer  # send to first valid driver only
 
-            return offer  # send to first driver only
-
-        # no drivers found
-        shipment.status = "cancelled"
-        shipment.save(update_fields=["status"])
-
+        # If all drivers already tried
+        print("All nearby drivers already received offers")
         return None
 
     @staticmethod
@@ -75,8 +80,18 @@ class MatchingService:
             .exclude(driver_id__in=tried_driver_ids)
             .filter(driver__is_available=True, is_online=True)
             .annotate(distance=Distance("location", pickup_point))
+            .filter(
+                location__distance_lte=(
+                    pickup_point,
+                    D(km=MatchingService.SEARCH_RADIUS_KM)
+                )
+            )
             .order_by("distance")[:MatchingService.MAX_CANDIDATES]
         )
+
+        if not drivers:
+            print("No more drivers available currently")
+            return None
 
         for d in drivers:
             driver = d.driver
@@ -90,8 +105,5 @@ class MatchingService:
 
             print(f"Next offer sent to {driver.user.email}")
             return offer
-
-        shipment.status = "cancelled"
-        shipment.save(update_fields=["status"])
 
         return None
