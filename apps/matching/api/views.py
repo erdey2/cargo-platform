@@ -9,8 +9,10 @@ from apps.shipments.models import Shipment
 from ..services.matching import MatchingService
 from ..models import DriverOffer
 from apps.assignment.models import Assignment
+from core.permissions import IsAdminOrDriver
 from .serializers import DriverPreviewSerializer, DriverOfferSerializer, DriverResponseSerializer
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse, OpenApiExample
+
 
 
 @extend_schema(
@@ -164,25 +166,25 @@ class DriverResponseView(APIView):
 )
 class DriverOfferViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = DriverOfferSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAdminOrDriver]
 
     def get_queryset(self):
         user = self.request.user
         status_param = self.request.query_params.get("status")
 
-        # Admins can see all offers
+        # Admins → see all offers
         if user.is_staff or user.is_superuser:
             queryset = DriverOffer.objects.all()
 
-        # Drivers see only their own offers
-        elif hasattr(user, "driver_profile"):
+        # Drivers → only their offers
+        elif getattr(user, "role", None) == "driver":
             queryset = DriverOffer.objects.filter(driver__user=user)
-            
-        # Other roles (e.g., customers) are denied
-        else:
-            raise PermissionDenied("Only drivers and admins can view offers")
 
-        # Apply optional status filter
+        # Other roles → no access (empty queryset instead of exception)
+        else:
+            return DriverOffer.objects.none()
+
+        # Optional filtering
         if status_param:
             queryset = queryset.filter(status=status_param)
 
