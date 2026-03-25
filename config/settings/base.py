@@ -251,17 +251,11 @@ DJANGO_ADMIN_FORCE_ALLAUTH = env.bool("DJANGO_ADMIN_FORCE_ALLAUTH", default=Fals
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
 REDIS_SSL = REDIS_URL.startswith("redis://")
 
-# ALLAUTH CONFIG
+# django-allauth
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
-ACCOUNT_USERNAME_REQUIRED = False
-ACCOUNT_UNIQUE_EMAIL = True
-ACCOUNT_AUTHENTICATION_METHOD = "email"
 ACCOUNT_LOGIN_METHODS = {"email"}
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_EMAIL_VERIFICATION = "none"
-
-# VERY IMPORTANT FOR API MODE
-ACCOUNT_ADAPTER = "allauth.account.adapter.DefaultAccountAdapter"
+ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*", "first_name*", "last_name*"]
+ACCOUNT_ALLOW_REGISTRATION = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -290,13 +284,20 @@ SIMPLE_JWT = {
 REST_AUTH = {
     "USE_JWT": True,
     "TOKEN_MODEL": None,
-    "REGISTER_SERIALIZER": "apps.users.api.serializers.CustomRegisterSerializer",
-    "LOGIN_SERIALIZER": "apps.users.api.serializers.CustomLoginSerializer",
+    'JWT_AUTH_COOKIE': 'access',
+    'JWT_AUTH_REFRESH_COOKIE': 'refresh',
+    "JWT_AUTH_HTTPONLY": False,
+    'REGISTER_SERIALIZER': 'apps.users.api.serializers.CustomRegisterSerializer',
+    'LOGIN_SERIALIZER': 'apps.users.api.serializers.CustomLoginSerializer',
+    'SIGNUP_FIELDS': {
+        'username': {'required': False},
+    }
 }
 
 REST_AUTH_REGISTER_PERMISSION_CLASSES = [
     'rest_framework.permissions.AllowAny',
 ]
+
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Cargo Platform API',
