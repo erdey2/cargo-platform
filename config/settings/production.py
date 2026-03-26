@@ -3,9 +3,7 @@ from .base import env
 
 DEBUG = False
 
-ALLOWED_HOSTS = [
-    "cargo-platform.onrender.com",
-]
+ALLOWED_HOSTS = ["cargo-platform.onrender.com", ".onrender.com"]
 
 CSRF_TRUSTED_ORIGINS = [
     "https://cargo-platform.onrender.com"
