@@ -12,7 +12,7 @@ class VehicleType(models.Model):
     def __str__(self):
         return self.name
 
-class Vehicle(models.Model):
+class Vehicle(BaseModel):
     driver = models.ForeignKey(DriverProfile, on_delete=models.CASCADE, related_name="vehicles")
     vehicle_type = models.ForeignKey(VehicleType, on_delete=models.CASCADE)
     plate_number = models.CharField(max_length=20, unique=True)

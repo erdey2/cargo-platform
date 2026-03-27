@@ -280,6 +280,7 @@ class AdminDisputeSerializer(serializers.ModelSerializer):
             "shipment",
             "raised_by",
             "raised_by_email",
+            'shipment_status',
             "subject",
             "description",
             "status",

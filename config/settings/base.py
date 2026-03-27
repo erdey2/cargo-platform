@@ -99,6 +99,7 @@ LOCAL_APPS = [
     "apps.admin_api",
     "apps.assignment",
     "core",
+    "apps.pricing",
     "apps.location",
     "apps.matching",
     "apps.payments",
