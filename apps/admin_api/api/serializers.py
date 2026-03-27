@@ -14,7 +14,7 @@ from apps.rating.models import Rating
 from apps.notifications.models import Notification
 from apps.location.models import Location
 from apps.tracking.models import DriverLocation
-from apps.admin.models import AuditLog, Dispute
+from apps.admin_api.models import AuditLog, Dispute
 
 User = get_user_model()
 

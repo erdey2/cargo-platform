@@ -96,7 +96,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     # custom apps
-    "apps.admin",
+    "apps.admin_api",
     "apps.assignment",
     "core",
     "apps.location",

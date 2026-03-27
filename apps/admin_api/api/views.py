@@ -20,7 +20,7 @@ from apps.pricing.models import PricingRule
 from apps.rating.models import Rating
 from apps.notifications.models import Notification
 from apps.location.models import Location
-from apps.admin.models import AuditLog, Dispute
+from apps.admin_api.models import AuditLog, Dispute
 
 from . import serializers
 
