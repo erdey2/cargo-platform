@@ -60,6 +60,7 @@ urlpatterns = [
 
     # Core APIs
     path("api/users/", include("apps.users.api.urls")),
+    path("api/admin/", include("apps.admin.api.urls")),
     path("api/", include("apps.shipments.api.urls")),
     path("api/", include("apps.vehicles.api.urls")),
     path("api/", include("apps.tracking.api.urls")),

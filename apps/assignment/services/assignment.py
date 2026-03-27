@@ -15,9 +15,10 @@ class AssignmentService:
     }
 
     @staticmethod
-    def assign_driver(shipment, driver):
+    def assign_driver(shipment, driver, vehicle=None):
 
-        vehicle = driver.vehicles.first()
+        if vehicle is None:
+            vehicle = driver.vehicles.first()
 
         assignment = Assignment.objects.create(
             shipment=shipment,
