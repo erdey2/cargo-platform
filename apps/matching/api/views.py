@@ -1,11 +1,11 @@
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import viewsets
-from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from apps.shipments.models import Shipment
+from apps.shipments.models import Shipment, ShipmentStatusHistory
 from ..services.matching import MatchingService
 from ..models import DriverOffer
 from apps.assignment.models import Assignment
@@ -121,6 +121,8 @@ class DriverResponseView(APIView):
                         capacity_weight__gte=offer.shipment.weight,
                         capacity_volume__gte=offer.shipment.volume
                     ).first()
+                    if vehicle is None:
+                        raise ValidationError("No suitable vehicle available for this shipment")
 
                     Assignment.objects.create(
                         shipment=offer.shipment,
@@ -133,7 +135,14 @@ class DriverResponseView(APIView):
 
                     shipment = offer.shipment
                     shipment.status = "assigned"
-                    shipment.save(update_fields=["status"])
+                    shipment.assigned_at = timezone.now()
+                    shipment.save(update_fields=["status", "assigned_at"])
+                    ShipmentStatusHistory.objects.create(
+                        shipment=shipment,
+                        status=shipment.status,
+                        changed_by=request.user,
+                        notes="Driver accepted matching offer",
+                    )
 
                     return Response({"message": "Accepted"})
 

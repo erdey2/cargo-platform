@@ -2,6 +2,7 @@ from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import NotFound, PermissionDenied
 from ..models import Assignment
 from .serializers import AssignmentSerializer, AssignmentStatusUpdateSerializer
 from apps.assignment.services.assignment import AssignmentService
@@ -67,8 +68,14 @@ class AssignmentStatusUpdateView(APIView):
         responses={200: AssignmentSerializer}
     )
     def post(self, request, assignment_id):
+        try:
+            assignment = Assignment.objects.select_related("driver__user").get(id=assignment_id)
+        except Assignment.DoesNotExist:
+            raise NotFound("Assignment not found")
 
-        assignment = Assignment.objects.get(id=assignment_id)
+        is_owner_driver = assignment.driver.user_id == request.user.id
+        if not (request.user.is_staff or request.user.is_superuser or is_owner_driver):
+            raise PermissionDenied("Not allowed to update this assignment")
 
         serializer = AssignmentStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

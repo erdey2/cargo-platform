@@ -4,6 +4,7 @@ from django.utils import timezone
 from datetime import timedelta
 from apps.tracking.models import DriverLocation
 from apps.matching.models import DriverOffer
+from apps.shipments.models import ShipmentStatusHistory
 
 
 class MatchingService:
@@ -43,6 +44,11 @@ class MatchingService:
             print("No drivers found")
             shipment.status = "no_driver"
             shipment.save()
+            ShipmentStatusHistory.objects.create(
+                shipment=shipment,
+                status=shipment.status,
+                notes="No drivers available in search radius",
+            )
             return None
 
         for d in drivers:
@@ -88,6 +94,11 @@ class MatchingService:
             print("No more drivers available")
             shipment.status = "no_driver"
             shipment.save()
+            ShipmentStatusHistory.objects.create(
+                shipment=shipment,
+                status=shipment.status,
+                notes="No more drivers available after offer retries",
+            )
             return None
 
         for d in drivers:

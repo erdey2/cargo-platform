@@ -10,6 +10,7 @@ class Assignment(BaseModel):
         ("in_transit", "In Transit"),
         ("delivered", "Delivered"),
         ("completed", "Completed"),
+        ("cancelled", "Cancelled"),
     ]
 
     shipment = models.OneToOneField(

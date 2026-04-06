@@ -10,6 +10,11 @@ class Shipment(BaseModel):
         ("created", "Created"),
         ("matching", "Matching"),
         ("assigned", "Assigned"),
+        ("driver_arriving", "Driver Arriving"),
+        ("in_transit", "In Transit"),
+        ("delivered", "Delivered"),
+        ("completed", "Completed"),
+        ("no_driver", "No Driver"),
         ("cancelled", "Cancelled"),
     )
 

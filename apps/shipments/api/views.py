@@ -197,11 +197,12 @@ class ShipmentStatusHistoryViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        shipment_id = self.kwargs.get("shipment_id")
-
+        shipment_id = self.request.query_params.get("shipment_id")
         if not shipment_id:
-            raise ValidationError("shipment_id is required")
+            raise ValidationError("shipment_id query param is required")
 
-        return ShipmentStatusHistory.objects.filter(
-            shipment_id=shipment_id
-        )
+        queryset = ShipmentStatusHistory.objects.filter(shipment_id=shipment_id)
+        user = self.request.user
+        if user.is_staff:
+            return queryset
+        return queryset.filter(shipment__customer=user)
