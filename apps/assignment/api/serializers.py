@@ -21,8 +21,7 @@ class AssignmentSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-class AssignmentStatusUpdateSerializer(serializers.Serializer):
-
-    status = serializers.ChoiceField(
-        choices=Assignment.STATUS_CHOICES
-    )
+class AssignmentStatusUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Assignment
+        fields = ["status"]

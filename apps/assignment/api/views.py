@@ -6,7 +6,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 from ..models import Assignment
 from .serializers import AssignmentSerializer, AssignmentStatusUpdateSerializer
 from apps.assignment.services.assignment import AssignmentService
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiResponse, OpenApiExample
 
 
 @extend_schema(
@@ -39,9 +39,7 @@ class AssignmentViewSet(viewsets.ReadOnlyModelViewSet):
             driver__user=user
         )
 
-@extend_schema(
-    tags=["Assignments"],
-)
+@extend_schema(tags=["Assignments"])
 class AssignmentStatusUpdateView(APIView):
 
     permission_classes = [IsAuthenticated]
@@ -50,10 +48,16 @@ class AssignmentStatusUpdateView(APIView):
         summary="Update assignment status",
         description=(
             "Update the status of an assignment.\n\n"
-            "This will:\n"
-            "- Validate the new status\n"
-            "- Apply business rules via AssignmentService\n"
-            "- Update assignment state (e.g., accepted, rejected, completed)"
+            "Allowed values:\n"
+            "- assigned\n"
+            "- driver_arriving\n"
+            "- in_transit\n"
+            "- delivered\n"
+            "- completed\n"
+            "- cancelled\n\n"
+            "Rules:\n"
+            "- Only assigned driver or admin can update\n"
+            "- Business logic is handled in AssignmentService"
         ),
         parameters=[
             OpenApiParameter(
@@ -65,15 +69,41 @@ class AssignmentStatusUpdateView(APIView):
             )
         ],
         request=AssignmentStatusUpdateSerializer,
-        responses={200: AssignmentSerializer}
+        responses={
+            200: AssignmentSerializer,
+            400: OpenApiResponse(description="Invalid status"),
+            403: OpenApiResponse(description="Permission denied"),
+            404: OpenApiResponse(description="Assignment not found"),
+        },
+        examples=[
+            OpenApiExample(
+                "Driver arriving",
+                value={"status": "driver_arriving"},
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Start delivery",
+                value={"status": "in_transit"},
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Complete delivery",
+                value={"status": "completed"},
+                request_only=True,
+            ),
+        ],
     )
     def post(self, request, assignment_id):
+
         try:
-            assignment = Assignment.objects.select_related("driver__user").get(id=assignment_id)
+            assignment = Assignment.objects.select_related(
+                "driver__user"
+            ).get(id=assignment_id)
         except Assignment.DoesNotExist:
             raise NotFound("Assignment not found")
 
         is_owner_driver = assignment.driver.user_id == request.user.id
+
         if not (request.user.is_staff or request.user.is_superuser or is_owner_driver):
             raise PermissionDenied("Not allowed to update this assignment")
 
@@ -88,6 +118,4 @@ class AssignmentStatusUpdateView(APIView):
             request.user
         )
 
-        return Response(
-            AssignmentSerializer(assignment).data
-        )
+        return Response(AssignmentSerializer(assignment).data)
