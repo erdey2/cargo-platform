@@ -10,7 +10,9 @@ from apps.shipments.models import ShipmentStatusHistory
 class MatchingService:
     SEARCH_RADIUS_KM = 10
     MAX_CANDIDATES = 5
-    OFFER_TIMEOUT_SECONDS = 30
+    # OFFER_TIMEOUT_SECONDS = 30
+    OFFER_TIMEOUT_SECONDS = 600
+
 
     @staticmethod
     def find_nearest_drivers(shipment):
@@ -42,6 +44,7 @@ class MatchingService:
 
         if not drivers:
             print("No drivers found")
+            
             shipment.status = "no_driver"
             shipment.save()
             ShipmentStatusHistory.objects.create(
