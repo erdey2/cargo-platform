@@ -37,6 +37,8 @@ class User(AbstractUser, BaseModel):
     ROLE_CHOICES = (
         ("customer", "Customer"),
         ("driver", "Driver"),
+        ("admin", "Admin"),
+        ("super_admin", "Super Admin"),
     )
 
     email = models.EmailField(unique=True)
@@ -50,8 +52,16 @@ class User(AbstractUser, BaseModel):
     objects = UserManager()
 
     def save(self, *args, **kwargs):
-        if self.is_superuser:
+        # Super admin → full power
+        if self.role == "super_admin":
+            self.is_superuser = True
             self.is_staff = True
+
+        # Admin → staff only
+        elif self.role == "admin":
+            self.is_staff = True
+            self.is_superuser = False
+
         super().save(*args, **kwargs)
 
     @property
@@ -61,6 +71,14 @@ class User(AbstractUser, BaseModel):
     @property
     def is_customer(self):
         return self.role == "customer"
+
+    @property
+    def is_admin(self):
+        return self.role == "admin"
+
+    @property
+    def is_super_admin(self):
+        return self.role == "super_admin"
 
     def __str__(self):
         return f"{self.email} ({self.role})"
