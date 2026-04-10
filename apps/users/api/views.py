@@ -5,7 +5,6 @@ from rest_framework.views import APIView
 from rest_framework import generics, permissions, status
 from .serializers import RegisterSerializer, ProfileSerializer, CustomerRegisterSerializer, DriverRegisterSerializer
 from ..models import Profile
-from apps.drivers.api.serializers import DriverRegistrationSerializer
 
 
 @extend_schema(
@@ -90,19 +89,22 @@ class CustomerRegistrationView(APIView):
     tags=["Authentication"],
     summary="Driver Registration",
     description="Register a new driver with profile, driver info, and vehicle.",
-    request=DriverRegistrationSerializer,
+    request=DriverRegisterSerializer,
     responses={201: {"type": "object", "properties": {"message": {"type": "string"}}}},
     examples=[
         OpenApiExample(
             "Driver Registration Example",
             value={
                 "email": "driver1@example.com",
-                "password": "Driver@12345",
+                "password1": "Driver@12345",
+                "password2": "Driver@12345",
                 "full_name": "Abel Tesfaye",
                 "phone": "+251911000001",
                 "address": "Addis Ababa",
                 "city": "Addis Ababa",
-                "location": "38.7615 9.0054",
+                "country": "Ethiopia",
+                "latitude_input": 9.0054,
+                "longitude_input": 38.7615,
                 "national_id": "NID-12345",
                 "driver_license": "LIC-12345",
                 "vehicle": {

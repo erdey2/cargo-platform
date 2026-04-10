@@ -66,7 +66,6 @@ urlpatterns = [
     path("api/", include("apps.tracking.api.urls")),
     path("api/", include("apps.assignment.api.urls")),
     path("api/", include("apps.payments.api.urls")),
-    path("api/drivers/", include("apps.drivers.api.urls")),
     path("api/matching/", include("apps.matching.api.urls")),
 
     # JWT Authentication

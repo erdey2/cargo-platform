@@ -200,14 +200,18 @@ class DriverRegisterSerializer(RegisterSerializer):
                 profile.location = Point(lng, lat)
             profile.save()
 
-            # Create DriverProfile
-            driver_profile, _ = DriverProfile.objects.get_or_create(
+            # Create or update DriverProfile (avoid stale rows from any prior empty profile)
+            driver_profile, created = DriverProfile.objects.get_or_create(
                 user=user,
                 defaults={
                     "national_id": data["national_id"],
-                    "driver_license": data["driver_license"]
-                }
+                    "driver_license": data["driver_license"],
+                },
             )
+            if not created:
+                driver_profile.national_id = data["national_id"]
+                driver_profile.driver_license = data["driver_license"]
+                driver_profile.save()
             # Create Vehicle
             Vehicle.objects.create(
                 driver=driver_profile,
