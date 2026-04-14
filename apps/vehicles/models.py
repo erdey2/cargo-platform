@@ -20,6 +20,13 @@ class Vehicle(BaseModel):
     capacity_volume = models.FloatField()
     verification_status = models.BooleanField(default=False)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=["driver"]),
+            models.Index(fields=["capacity_weight"]),
+            models.Index(fields=["capacity_volume"]),
+        ]
+
     def __str__(self):
         return f"{self.vehicle_type} - {self.plate_number}  - {self.driver}"
 

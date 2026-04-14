@@ -1,6 +1,6 @@
 from django.db import models
 from core.models import BaseModel
-
+from apps.vehicles.models import Vehicle
 
 class DriverOffer(BaseModel):
 
@@ -22,6 +22,9 @@ class DriverOffer(BaseModel):
         on_delete=models.CASCADE,
         related_name="offers"
     )
+
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, null=True, blank=True)
+    # vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE)
 
     status = models.CharField(
         max_length=20,

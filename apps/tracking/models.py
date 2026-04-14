@@ -17,6 +17,11 @@ class DriverLocation(BaseModel):
     is_online = models.BooleanField(default=True)
     last_updated = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=["driver"]),
+        ]
+
     def __str__(self):
         return f"{self.driver} location"
 

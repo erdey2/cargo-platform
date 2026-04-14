@@ -8,10 +8,8 @@ class Location(models.Model):
     zone = models.CharField(max_length=100, blank=True, null=True)
     woreda = models.CharField(max_length=100, blank=True, null=True)
     city = models.CharField(max_length=100, blank=True, null=True)
-
     latitude = models.FloatField()
     longitude = models.FloatField()
-
     description = models.TextField(blank=True, null=True)
 
     def __str__(self):
