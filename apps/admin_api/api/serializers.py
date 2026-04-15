@@ -4,16 +4,15 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
 from apps.users.models import Profile
-from apps.drivers.models import DriverProfile, DriverDocument, DriverEarning
-from apps.vehicles.models import Vehicle, VehicleType, VehicleDocument
-from apps.shipments.models import Shipment, CargoType, ShipmentStatusHistory
+from apps.drivers.models import DriverProfile
+from apps.vehicles.models import Vehicle
+from apps.shipments.models import Shipment, CargoType
 from apps.assignment.models import Assignment
 from apps.payments.models import Transaction
 from apps.pricing.models import PricingRule
 from apps.rating.models import Rating
 from apps.notifications.models import Notification
 from apps.location.models import Location
-from apps.tracking.models import DriverLocation
 from apps.admin_api.models import AuditLog, Dispute
 
 User = get_user_model()
@@ -212,7 +211,7 @@ class AdminNotificationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Notification
-        fields = ["id", "user", "user_email", "title", "message", "is_read", "created_at"]
+        fields = ["id", "recipient", "user_email", "message", "data", "is_read", "created_at"]
 
 
 class AdminSendNotificationSerializer(serializers.Serializer):
