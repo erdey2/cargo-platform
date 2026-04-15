@@ -1,6 +1,5 @@
 from django.db import transaction
 from firebase_admin import messaging
-from firebase_admin.exceptions import FirebaseError
 import logging
 
 from .models import Notification, NotificationPreference, Device

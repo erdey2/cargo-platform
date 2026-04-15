@@ -1,7 +1,7 @@
 from django.utils import timezone
 from apps.matching.models import DriverOffer
 from apps.matching.services.matching import MatchingService
-
+from apps.notifications.services import notify_user
 
 class OfferService:
 
@@ -10,7 +10,7 @@ class OfferService:
         now = timezone.now()
 
         expired_offers = DriverOffer.objects.select_related(
-            "shipment", "driver"
+            "shipment", "driver", "driver__user"
         ).filter(
             status="pending",
             expires_at__lte=now
@@ -22,17 +22,41 @@ class OfferService:
             if offer.status != "pending":
                 continue
 
+            shipment = offer.shipment
+            driver = offer.driver
+
             # Mark expired
             offer.status = "expired"
             offer.save(update_fields=["status"])
 
-            shipment = offer.shipment
+            print(f"Offer expired for {driver.user.email}")
+
+            # 🔔 Notify DRIVER (offer expired)
+            notify_user(
+                user=driver.user,
+                title="Offer Expired",
+                message="You did not respond in time. The request has been reassigned.",
+                data={
+                    "type": "offer_expired",
+                    "shipment_id": shipment.id,
+                    "offer_id": offer.id
+                }
+            )
 
             # Only continue if shipment still needs matching
             if shipment.status != "matching":
                 continue
 
-            print(f"Offer expired for {offer.driver.user.email}")
+            # Notify CUSTOMER (reassigning)
+            notify_user(
+                user=shipment.customer,
+                title="Finding Another Driver",
+                message="Previous driver didn’t respond. Searching for another driver...",
+                data={
+                    "type": "driver_reassign",
+                    "shipment_id": shipment.id
+                }
+            )
 
             # Assign next driver
             MatchingService.match_next_driver(shipment)

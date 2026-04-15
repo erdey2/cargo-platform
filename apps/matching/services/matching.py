@@ -8,6 +8,7 @@ from apps.tracking.models import DriverLocation
 from apps.matching.models import DriverOffer
 from apps.shipments.models import ShipmentStatusHistory
 from apps.vehicles.models import Vehicle
+from apps.notifications.services import notify_user
 
 
 class MatchingService:
@@ -83,6 +84,19 @@ class MatchingService:
                 status=shipment.status,
                 notes="No drivers available in search radius",
             )
+
+            # Notify customer
+            notify_user(
+                user=shipment.customer,
+                title="No Driver Available",
+                message="We couldn’t find a driver nearby. Please try again later.",
+                data={
+                    "type": "no_driver",
+                    "shipment_id": shipment.id
+                }
+            )
+
+            return None
             return None
 
         for d in drivers:
@@ -145,6 +159,17 @@ class MatchingService:
                 status=shipment.status,
                 notes="No more drivers available after retries",
             )
+
+            # Notify customer
+            notify_user(
+                user=shipment.customer,
+                title="No More Drivers",
+                message="No drivers available after multiple attempts.",
+                data={
+                    "type": "no_driver_retry",
+                    "shipment_id": shipment.id
+                }
+            )
             return None
 
         for d in drivers:
@@ -161,7 +186,7 @@ class MatchingService:
     # CREATE OFFER
     @staticmethod
     def create_offer(shipment, driver, vehicle):
-        return DriverOffer.objects.create(
+        offer = DriverOffer.objects.create(
             shipment=shipment,
             driver=driver,
             vehicle=vehicle,
@@ -170,3 +195,32 @@ class MatchingService:
                 seconds=MatchingService.OFFER_TIMEOUT_SECONDS
             )
         )
+
+        # Notify CUSTOMER
+        notify_user(
+            user=shipment.customer,
+            title="Driver Found for Your Shipment",
+            message="A driver has been found and notified.",
+            data={
+                "type": "driver_found",
+                "shipment_id": shipment.id,
+                "driver_id": driver.id,
+                "offer_id": offer.id
+            }
+        )
+
+        # Notify DRIVER
+        notify_user(
+            user=driver.user,
+            title="New Delivery Request",
+            message="You have a new shipment request.",
+            data={
+                "type": "new_offer",
+                "shipment_id": shipment.id,
+                "offer_id": offer.id
+            }
+        )
+
+        return offer
+
+
