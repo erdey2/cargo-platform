@@ -1,5 +1,6 @@
 from decimal import Decimal, ROUND_HALF_UP
 from ..services.osrm_service import OSRMService
+from apps.pricing.services.google_maps_service import GoogleMapsService
 
 class PriceCalculator:
 
@@ -9,12 +10,38 @@ class PriceCalculator:
 
     @staticmethod
     def calculate_estimated_price(shipment):
-        distance_m = shipment.pickup_location.distance(shipment.dropoff_location)
+        try:
+            distance_km, duration_min = GoogleMapsService.get_distance_and_duration(
+                (shipment.pickup_location.y, shipment.pickup_location.x),
+                (shipment.dropoff_location.y, shipment.dropoff_location.x),
+            )
 
-        # Convert to Decimal safely
-        distance_km = Decimal(str(distance_m)) / Decimal("1000")
+            # cache for later use
+            shipment.road_distance_km = distance_km
+            shipment.estimated_duration_min = duration_min
+            shipment.save(update_fields=["road_distance_km", "estimated_duration_min"])
 
-        # Distance-based pricing tiers
+        except Exception:
+            # fallback (Haversine)
+            from math import radians, sin, cos, sqrt, atan2
+
+            def haversine(lat1, lon1, lat2, lon2):
+                R = 6371
+                dlat = radians(lat2 - lat1)
+                dlon = radians(lon2 - lon1)
+                a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+                return 2 * R * atan2(sqrt(a), sqrt(1 - a))
+
+            distance_km = haversine(
+                shipment.pickup_location.y,
+                shipment.pickup_location.x,
+                shipment.dropoff_location.y,
+                shipment.dropoff_location.x,
+            )
+
+        distance_km = Decimal(str(distance_km))
+
+        # Pricing tiers
         if distance_km < 5:
             rate = Decimal("8")
         elif distance_km < 20:
@@ -23,13 +50,10 @@ class PriceCalculator:
             rate = Decimal("15")
 
         distance_cost = distance_km * rate
-
-        # Weight cost
         weight_cost = Decimal(str(shipment.weight)) * PriceCalculator.WEIGHT_RATE
 
         total = PriceCalculator.BASE_FEE + distance_cost + weight_cost
 
-        # Minimum fare
         total = max(total, Decimal("100"))
 
         return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

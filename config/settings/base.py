@@ -318,3 +318,5 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": 10.0,
     },
 }
+
+GOOGLE_MAPS_API_KEY="AIzaSyB2aFXLMFYNhwHqpH5v_e1Zuh1KFk7xe3c"
