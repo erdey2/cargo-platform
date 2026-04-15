@@ -35,5 +35,6 @@ class GoogleMapsService:
 
         distance_km = distance_m / 1000
         duration_min = duration_s / 60
+        print(distance_km, duration_min)
 
         return distance_km, duration_min
