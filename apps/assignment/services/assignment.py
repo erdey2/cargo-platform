@@ -4,7 +4,7 @@ from rest_framework.exceptions import ValidationError
 from ..models import Assignment
 from apps.shipments.models import ShipmentStatusHistory
 from apps.pricing.services.pricing_service import PriceCalculator
-
+from apps.notifications.services import notify_user
 
 class AssignmentService:
 
@@ -41,6 +41,18 @@ class AssignmentService:
         driver.is_available = False
         driver.save(update_fields=["is_available"])
 
+        # Notify CUSTOMER
+        notify_user(
+            user=shipment.customer,
+            title="Driver Assigned",
+            message="A driver has been assigned to your shipment.",
+            data={
+                "type": "driver_assigned",
+                "shipment_id": shipment.id,
+                "driver_id": driver.id
+            }
+        )
+
         return assignment
 
     @staticmethod
@@ -50,7 +62,6 @@ class AssignmentService:
         current_status = assignment.status
         allowed_next = AssignmentService.VALID_TRANSITIONS.get(current_status, [])
 
-        # Transition validation
         if new_status not in allowed_next:
             raise ValidationError({
                 "status": f"Cannot change from '{current_status}' to '{new_status}'"
@@ -60,10 +71,11 @@ class AssignmentService:
             raise ValidationError("Only admin can cancel assignments")
 
         shipment = assignment.shipment
+        driver = assignment.driver
+        customer = shipment.customer
 
         now = timezone.now()
 
-        # Apply status
         assignment.status = new_status
         shipment.status = new_status
 
@@ -93,8 +105,8 @@ class AssignmentService:
 
         # Driver becomes available again
         if new_status in ["completed", "cancelled"]:
-            assignment.driver.is_available = True
-            assignment.driver.save(update_fields=["is_available"])
+            driver.is_available = True
+            driver.save(update_fields=["is_available"])
 
         assignment.save(update_fields=update_fields_assignment)
         shipment.save(update_fields=update_fields_shipment)
@@ -106,5 +118,59 @@ class AssignmentService:
             changed_by=user,
             notes=f"Assignment status changed from {current_status} to {new_status}",
         )
+
+        # NOTIFICATIONS
+
+        if new_status == "driver_arriving":
+            notify_user(
+                user=customer,
+                title="Driver is Coming",
+                message="Your driver is on the way to pickup location.",
+                data={"type": "driver_arriving", "shipment_id": shipment.id}
+            )
+
+        elif new_status == "in_transit":
+            notify_user(
+                user=customer,
+                title="Shipment Picked Up",
+                message="Your shipment is now in transit.",
+                data={"type": "in_transit", "shipment_id": shipment.id}
+            )
+
+        elif new_status == "delivered":
+            notify_user(
+                user=customer,
+                title="Shipment Delivered",
+                message="Your shipment has been delivered.",
+                data={"type": "delivered", "shipment_id": shipment.id}
+            )
+
+        elif new_status == "completed":
+            notify_user(
+                user=customer,
+                title="Shipment Completed",
+                message="Your shipment has been completed successfully.",
+                data={
+                    "type": "completed",
+                    "shipment_id": shipment.id,
+                    "final_price": shipment.final_price
+                }
+            )
+
+        elif new_status == "cancelled":
+            # Notify both sides
+            notify_user(
+                user=customer,
+                title="Shipment Cancelled",
+                message="Your shipment has been cancelled.",
+                data={"type": "cancelled", "shipment_id": shipment.id}
+            )
+
+            notify_user(
+                user=driver.user,
+                title="Assignment Cancelled",
+                message="This shipment assignment has been cancelled.",
+                data={"type": "cancelled", "shipment_id": shipment.id}
+            )
 
         return assignment
