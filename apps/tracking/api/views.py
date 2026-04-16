@@ -59,7 +59,7 @@ class UpdateDriverLocationView(APIView):
         except ValueError:
             raise ValidationError("Invalid latitude or longitude format.")
 
-        location = Point(lng, lat)
+        location = Point(lng, lat, srid=4326)
 
         driver_location, _ = DriverLocation.objects.update_or_create(
             driver=driver,
@@ -150,11 +150,11 @@ class NearbyDriversView(APIView):
         except ValueError:
             raise ValidationError("Invalid latitude or longitude.")
 
-        point = Point(lng, lat)
+        point = Point(lng, lat, srid=4326)
 
         drivers = (
             DriverLocation.objects
-            .annotate(distance=Distance("location", point))
+            .annotate(distance=Distance("location", point, spheroid=True))
             .filter(
                 location__distance_lte=(point, D(km=10)),
                 driver__is_available=True,
