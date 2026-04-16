@@ -10,6 +10,8 @@ from .serializers import DriverLocationSerializer
 from apps.drivers.models import DriverProfile
 from core.permissions import IsDriver
 from drf_spectacular.utils import extend_schema, OpenApiParameter
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 
 @extend_schema(tags=["Driver Location"])
@@ -59,8 +61,10 @@ class UpdateDriverLocationView(APIView):
         except ValueError:
             raise ValidationError("Invalid latitude or longitude format.")
 
+        # Create GIS point
         location = Point(lng, lat, srid=4326)
 
+        # Save to DB
         driver_location, _ = DriverLocation.objects.update_or_create(
             driver=driver,
             defaults={
@@ -68,6 +72,24 @@ class UpdateDriverLocationView(APIView):
                 "heading": request.data.get("heading"),
                 "speed": request.data.get("speed"),
                 "is_online": True
+            }
+        )
+
+        # Broadcast via WebSocket
+        channel_layer = get_channel_layer()
+
+        async_to_sync(channel_layer.group_send)(
+            "drivers", # group name
+            {
+                "type": "send_driver_location",
+                "data": {
+                    "driver_id": driver.id,
+                    "lat": lat,
+                    "lng": lng,
+                    "heading": request.data.get("heading"),
+                    "speed": request.data.get("speed"),
+                    "is_online": True,
+                }
             }
         )
 
@@ -88,7 +110,7 @@ class DriverLocationView(APIView):
                 description="ID of the driver",
                 required=True,
                 type=int,
-                location=OpenApiParameter.PATH,
+                location="path",
             )
         ],
         responses={200: DriverLocationSerializer},
@@ -124,14 +146,14 @@ class NearbyDriversView(APIView):
                 description="Latitude",
                 required=True,
                 type=float,
-                location=OpenApiParameter.QUERY,
+                location="query",
             ),
             OpenApiParameter(
                 name="lng",
                 description="Longitude",
                 required=True,
                 type=float,
-                location=OpenApiParameter.QUERY,
+                location="query",
             ),
         ],
         responses={200: DriverLocationSerializer(many=True)},
@@ -160,7 +182,7 @@ class NearbyDriversView(APIView):
                 driver__is_available=True,
                 is_online=True
             )
-            .order_by("distance")[:10]
+            .order_by("distance", "-driver__rating")[:10]
         )
 
         serializer = DriverLocationSerializer(drivers, many=True)
