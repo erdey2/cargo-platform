@@ -160,11 +160,16 @@ CORS_ALLOW_ALL_ORIGINS = False
 
 ASGI_APPLICATION = "config.asgi.application"
 
+REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
+
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [os.environ.get("REDIS_URL")],
+            "hosts": [REDIS_URL],
+            "capacity": 1500,
+            "expiry": 10,
+            
         },
     },
 }
@@ -172,12 +177,16 @@ CHANNEL_LAYERS = {
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": env("REDIS_URL"),
+        "LOCATION": REDIS_URL,
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
     }
 }
+
+# Celery
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
 
 # Cloudinary Config
 CLOUDINARY_STORAGE = {
@@ -251,8 +260,7 @@ MANAGERS = ADMINS
 
 DJANGO_ADMIN_FORCE_ALLAUTH = env.bool("DJANGO_ADMIN_FORCE_ALLAUTH", default=False)
 
-REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
-REDIS_SSL = REDIS_URL.startswith("redis://")
+REDIS_SSL = REDIS_URL.startswith("rediss://")
 
 # django-allauth
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
