@@ -1,4 +1,4 @@
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -98,12 +98,17 @@ class DriverResponseView(APIView):
         try:
             with transaction.atomic():
 
-                offer = DriverOffer.objects.select_for_update().select_related(
-                    "shipment",
-                    "driver",
-                    "driver__user",
-                    "vehicle"
-                ).get(id=offer_id)
+                offer = (
+                    DriverOffer.objects
+                    .select_for_update(of=("self",))
+                    .get(id=offer_id)
+                )
+
+                shipment = (
+                    offer.shipment.__class__.objects
+                    .select_for_update()
+                    .get(id=offer.shipment_id)
+                )
 
                 # Ensure ownership
                 if offer.driver.user != request.user:
@@ -117,37 +122,41 @@ class DriverResponseView(APIView):
                 if offer.expires_at < timezone.now():
                     offer.status = "expired"
                     offer.save(update_fields=["status"])
-                    MatchingService.match_next_driver(offer.shipment)
+
+                    MatchingService.match_next_driver(shipment)
                     return Response({"error": "Offer expired"}, status=400)
+
+                # Prevent accepting already assigned shipment
+                if shipment.status != "matching":
+                    return Response({"error": "Already assigned"}, status=400)
 
                 # ACCEPT FLOW
                 if action == "accept":
-
-                    offer.status = "accepted"
-                    offer.responded_at = timezone.now()
-                    offer.save(update_fields=["status", "responded_at"])
-
-                    # prevent duplicate assignment
-                    if Assignment.objects.filter(shipment=offer.shipment).exists():
-                        return Response({"error": "Already assigned"}, status=400)
 
                     vehicle = offer.vehicle
                     if not vehicle:
                         raise ValidationError("No vehicle assigned to this offer")
 
-                    # create assignment
-                    Assignment.objects.create(
-                        shipment=offer.shipment,
-                        driver=offer.driver,
-                        vehicle=vehicle
-                    )
+                    # Safe assignment creation
+                    try:
+                        Assignment.objects.create(
+                            shipment=shipment,
+                            driver=offer.driver,
+                            vehicle=vehicle
+                        )
+                    except IntegrityError:
+                        return Response({"error": "Already assigned"}, status=400)
+
+                    # update offer
+                    offer.status = "accepted"
+                    offer.responded_at = timezone.now()
+                    offer.save(update_fields=["status", "responded_at"])
 
                     # update driver
                     offer.driver.is_available = False
                     offer.driver.save(update_fields=["is_available"])
 
                     # update shipment
-                    shipment = offer.shipment
                     shipment.driver = offer.driver
                     shipment.status = "assigned"
                     shipment.assigned_at = timezone.now()
@@ -161,9 +170,8 @@ class DriverResponseView(APIView):
                         notes="Driver accepted offer"
                     )
 
-                    # REAL-TIME: notify customer
+                    # REAL-TIME notify customer
                     channel_layer = get_channel_layer()
-
                     async_to_sync(channel_layer.group_send)(
                         f"user_{shipment.customer.id}",
                         {
@@ -186,18 +194,17 @@ class DriverResponseView(APIView):
                     offer.save(update_fields=["status", "responded_at"])
 
                     # try next driver
-                    MatchingService.match_next_driver(offer.shipment)
+                    MatchingService.match_next_driver(shipment)
 
-                    # OPTIONAL REAL-TIME update
+                    # REAL-TIME update
                     channel_layer = get_channel_layer()
-
                     async_to_sync(channel_layer.group_send)(
-                        f"user_{offer.shipment.customer.id}",
+                        f"user_{shipment.customer.id}",
                         {
                             "type": "shipment_update",
                             "data": {
                                 "type": "driver_rejected",
-                                "shipment_id": offer.shipment.id,
+                                "shipment_id": shipment.id,
                             }
                         }
                     )
