@@ -5,7 +5,7 @@ from apps.shipments.models import Shipment
 
 class DriverLocationConsumer(AsyncWebsocketConsumer):
 
-    async def connect(self):
+    ''' async def connect(self):
         self.user = self.scope.get("user")
 
         if self.user.is_anonymous:
@@ -20,7 +20,16 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_add(
             self.user_group,
             self.channel_name
-        )
+        ) '''
+
+    async def connect(self):
+        self.user = self.scope.get("user")
+
+        # DEBUG MODE ONLY
+        self.user_group = None
+        self.shipment_group = None
+
+        await self.accept()
 
     async def disconnect(self, close_code):
         # SAFE GUARDS
