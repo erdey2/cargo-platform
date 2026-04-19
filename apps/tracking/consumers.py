@@ -1,65 +1,61 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
-from channels.db import database_sync_to_async
-from apps.shipments.models import Shipment
+from asgiref.sync import sync_to_async
+from django.contrib.gis.geos import Point
+from apps.tracking.models import DriverLocation
+from apps.drivers.models import DriverProfile
+
 
 class DriverLocationConsumer(AsyncWebsocketConsumer):
 
-    ''' async def connect(self):
-        self.user = self.scope.get("user")
+    async def connect(self):
+        self.user = self.scope["user"]
 
         if self.user.is_anonymous:
             await self.close()
             return
 
-        self.user_group = f"user_{self.user.id}"
-        self.shipment_group = None
-
-        await self.accept()
+        self.shipment_id = self.scope["url_route"]["kwargs"]["shipment_id"]
+        self.group_name = f"shipment_{self.shipment_id}"
 
         await self.channel_layer.group_add(
-            self.user_group,
+            self.group_name,
             self.channel_name
-        ) '''
-
-    async def connect(self):
-        self.user = self.scope.get("user")
-
-        # DEBUG MODE ONLY
-        self.user_group = None
-        self.shipment_group = None
+        )
 
         await self.accept()
 
     async def disconnect(self, close_code):
-        # SAFE GUARDS
-        if getattr(self, "user_group", None):
+        if hasattr(self, "group_name"):
             await self.channel_layer.group_discard(
-                self.user_group,
-                self.channel_name
-            )
-
-        if getattr(self, "shipment_group", None):
-            await self.channel_layer.group_discard(
-                self.shipment_group,
+                self.group_name,
                 self.channel_name
             )
 
     async def receive(self, text_data):
         data = json.loads(text_data)
 
-        if data.get("type") == "join_shipment":
-            shipment_id = data.get("shipment_id")
+        lat = data.get("lat")
+        lng = data.get("lng")
 
-            self.shipment_group = f"shipment_{shipment_id}"
+        await self.save_location(lat, lng)
 
-            await self.channel_layer.group_add(
-                self.shipment_group,
-                self.channel_name
-            )
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                "type": "send_location",
+                "lat": lat,
+                "lng": lng,
+            }
+        )
 
-    async def driver_location(self, event):
-        await self.send(text_data=json.dumps(event["data"]))
+    async def send_location(self, event):
+        await self.send(text_data=json.dumps(event))
 
-    async def shipment_matched(self, event):
-        await self.send(text_data=json.dumps(event["data"]))
+    @sync_to_async
+    def save_location(self, lat, lng):
+        driver = DriverProfile.objects.get(user=self.user)
+        DriverLocation.objects.update_or_create(
+            driver=driver,
+            defaults={"location": Point(lng, lat)}
+        )
