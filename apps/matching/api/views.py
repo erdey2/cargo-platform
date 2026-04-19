@@ -12,7 +12,8 @@ from apps.assignment.models import Assignment
 from core.permissions import IsAdminOrDriver
 from .serializers import DriverPreviewSerializer, DriverOfferSerializer, DriverResponseSerializer
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse, OpenApiExample
-
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 
 @extend_schema(
@@ -89,69 +90,118 @@ class DriverResponseView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, offer_id):
+
         serializer = DriverResponseSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         action = serializer.validated_data["action"]
 
         try:
             with transaction.atomic():
-                offer = DriverOffer.objects.select_for_update().get(id=offer_id)
 
+                offer = DriverOffer.objects.select_for_update().select_related(
+                    "shipment",
+                    "driver",
+                    "driver__user",
+                    "vehicle"
+                ).get(id=offer_id)
+
+                # Ensure ownership
                 if offer.driver.user != request.user:
                     raise PermissionDenied("Not your offer")
 
+                # Already handled
                 if offer.status != "pending":
                     return Response({"error": "Already handled"}, status=400)
 
+                # Expired
                 if offer.expires_at < timezone.now():
                     offer.status = "expired"
-                    offer.save()
+                    offer.save(update_fields=["status"])
                     MatchingService.match_next_driver(offer.shipment)
                     return Response({"error": "Offer expired"}, status=400)
 
+                # ACCEPT FLOW
                 if action == "accept":
+
                     offer.status = "accepted"
                     offer.responded_at = timezone.now()
-                    offer.save()
+                    offer.save(update_fields=["status", "responded_at"])
 
-                    if hasattr(offer.shipment, "assignment"):
+                    # prevent duplicate assignment
+                    if Assignment.objects.filter(shipment=offer.shipment).exists():
                         return Response({"error": "Already assigned"}, status=400)
 
-                    vehicle = offer.driver.vehicles.filter(
-                        capacity_weight__gte=offer.shipment.weight,
-                        capacity_volume__gte=offer.shipment.volume
-                    ).first()
-                    if vehicle is None:
-                        raise ValidationError("No suitable vehicle available for this shipment")
+                    vehicle = offer.vehicle
+                    if not vehicle:
+                        raise ValidationError("No vehicle assigned to this offer")
 
+                    # create assignment
                     Assignment.objects.create(
                         shipment=offer.shipment,
                         driver=offer.driver,
                         vehicle=vehicle
                     )
 
+                    # update driver
                     offer.driver.is_available = False
                     offer.driver.save(update_fields=["is_available"])
 
+                    # update shipment
                     shipment = offer.shipment
+                    shipment.driver = offer.driver
                     shipment.status = "assigned"
                     shipment.assigned_at = timezone.now()
-                    shipment.save(update_fields=["status", "assigned_at"])
+                    shipment.save(update_fields=["driver", "status", "assigned_at"])
+
+                    # history
                     ShipmentStatusHistory.objects.create(
                         shipment=shipment,
-                        status=shipment.status,
+                        status="assigned",
                         changed_by=request.user,
-                        notes="Driver accepted matching offer",
+                        notes="Driver accepted offer"
+                    )
+
+                    # REAL-TIME: notify customer
+                    channel_layer = get_channel_layer()
+
+                    async_to_sync(channel_layer.group_send)(
+                        f"user_{shipment.customer.id}",
+                        {
+                            "type": "shipment_matched",
+                            "data": {
+                                "type": "matched",
+                                "shipment_id": shipment.id,
+                                "driver_id": offer.driver.id,
+                            }
+                        }
                     )
 
                     return Response({"message": "Accepted"})
 
+                # REJECT FLOW
                 elif action == "reject":
+
                     offer.status = "rejected"
                     offer.responded_at = timezone.now()
-                    offer.save()
+                    offer.save(update_fields=["status", "responded_at"])
 
+                    # try next driver
                     MatchingService.match_next_driver(offer.shipment)
+
+                    # OPTIONAL REAL-TIME update
+                    channel_layer = get_channel_layer()
+
+                    async_to_sync(channel_layer.group_send)(
+                        f"user_{offer.shipment.customer.id}",
+                        {
+                            "type": "shipment_update",
+                            "data": {
+                                "type": "driver_rejected",
+                                "shipment_id": offer.shipment.id,
+                            }
+                        }
+                    )
+
                     return Response({"message": "Rejected"})
 
         except DriverOffer.DoesNotExist:
@@ -189,7 +239,7 @@ class DriverOfferViewSet(viewsets.ReadOnlyModelViewSet):
         elif getattr(user, "role", None) == "driver":
             queryset = DriverOffer.objects.filter(driver__user=user)
 
-        # Other roles → no access (empty queryset instead of exception)
+        # Other roles → no access (empty queryset)
         else:
             return DriverOffer.objects.none()
 

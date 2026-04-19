@@ -97,7 +97,6 @@ class MatchingService:
             )
 
             return None
-            return None
 
         for d in drivers:
             driver = d.driver
@@ -195,7 +194,6 @@ class MatchingService:
                 seconds=MatchingService.OFFER_TIMEOUT_SECONDS
             )
         )
-
         # Notify CUSTOMER
         notify_user(
             user=shipment.customer,

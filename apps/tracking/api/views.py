@@ -8,6 +8,7 @@ from django.contrib.gis.measure import D
 from ..models import DriverLocation
 from .serializers import DriverLocationSerializer
 from apps.drivers.models import DriverProfile
+from apps.shipments.models import Shipment
 from core.permissions import IsDriver
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from asgiref.sync import async_to_sync
@@ -44,9 +45,8 @@ class UpdateDriverLocationView(APIView):
     )
     def post(self, request):
 
-        try:
-            driver = DriverProfile.objects.get(user=request.user)
-        except DriverProfile.DoesNotExist:
+        driver = DriverProfile.objects.filter(user=request.user).first()
+        if not driver:
             raise ValidationError("Driver profile not found.")
 
         lat = request.data.get("lat")
@@ -55,16 +55,10 @@ class UpdateDriverLocationView(APIView):
         if lat is None or lng is None:
             raise ValidationError("Latitude and longitude are required.")
 
-        try:
-            lat = float(lat)
-            lng = float(lng)
-        except ValueError:
-            raise ValidationError("Invalid latitude or longitude format.")
+        lat, lng = float(lat), float(lng)
 
-        # Create GIS point
         location = Point(lng, lat, srid=4326)
 
-        # Save to DB
         driver_location, _ = DriverLocation.objects.update_or_create(
             driver=driver,
             defaults={
@@ -75,26 +69,31 @@ class UpdateDriverLocationView(APIView):
             }
         )
 
-        # Broadcast via WebSocket
-        channel_layer = get_channel_layer()
+        # REAL-TIME SEND
+        shipment = Shipment.objects.filter(
+            driver=driver,
+            status="assigned"
+        ).first()
 
-        async_to_sync(channel_layer.group_send)(
-            "drivers", # group name
-            {
-                "type": "send_driver_location",
-                "data": {
-                    "driver_id": driver.id,
-                    "lat": lat,
-                    "lng": lng,
-                    "heading": request.data.get("heading"),
-                    "speed": request.data.get("speed"),
-                    "is_online": True,
+        if shipment:
+            channel_layer = get_channel_layer()
+
+            async_to_sync(channel_layer.group_send)(
+                f"shipment_{shipment.id}",
+                {
+                    "type": "driver_location",
+                    "data": {
+                        "type": "driver_location",
+                        "driver_id": driver.id,
+                        "lat": lat,
+                        "lng": lng,
+                        "heading": request.data.get("heading"),
+                        "speed": request.data.get("speed"),
+                    }
                 }
-            }
-        )
+            )
 
-        serializer = DriverLocationSerializer(driver_location)
-        return Response(serializer.data)
+        return Response(DriverLocationSerializer(driver_location).data)
 
 @extend_schema(tags=["Driver Location"])
 class DriverLocationView(APIView):
