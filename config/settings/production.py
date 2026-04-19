@@ -9,6 +9,15 @@ CSRF_TRUSTED_ORIGINS = [
     "https://cargo-platform.onrender.com"
 ]
 
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [REDIS_URL],
+        },
+    },
+}
+
 # CACHES
 CACHES = {
     "default": {
