@@ -26,6 +26,7 @@ class ShipmentSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "customer",
+            "driver",
             "pickup_address",
             "dropoff_address",
 
