@@ -41,6 +41,9 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
             await self.accept()
 
             print(f"CONNECTED: user={self.user.id}, role={self.role}, group={self.group_name}")
+            print("USER:", self.user)
+            print("ROLE:", self.user.role)
+            print("GROUP:", self.group_name)
 
         except Exception as e:
             print("CONNECT ERROR:", e)
@@ -110,13 +113,7 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
     # HELPERS
     @sync_to_async
     def get_role(self):
-        if DriverProfile.objects.filter(user=self.user).exists():
-            return "driver"
-
-        if self.user.is_staff or self.user.is_superuser:
-            return "admin"
-
-        return "customer"
+        return getattr(self.user, "role", "customer")
 
     @sync_to_async
     def save_location(self, lat, lng, heading=None, speed=None):
@@ -138,10 +135,21 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
 
     @sync_to_async
     def is_authorized(self):
-        return Shipment.objects.filter(
-            id=self.shipment_id,
-            driver__user=self.user
-        ).exists() or Shipment.objects.filter(
-            id=self.shipment_id,
-            customer=self.user
-        ).exists()
+        print("AUTH CHECK:", self.user, self.user.role, self.shipment_id)
+
+        if self.user.role in ["admin", "super_admin"]:
+            return True
+
+        if self.user.role == "driver":
+            return Shipment.objects.filter(
+                id=self.shipment_id,
+                driver__user=self.user
+            ).exists()
+
+        if self.user.role == "customer":
+            return Shipment.objects.filter(
+                id=self.shipment_id,
+                customer=self.user
+            ).exists()
+
+        return False
