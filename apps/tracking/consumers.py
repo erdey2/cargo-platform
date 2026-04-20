@@ -2,10 +2,12 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
 from django.contrib.gis.geos import Point
+from django.core.exceptions import ObjectDoesNotExist
 
 from apps.tracking.models import DriverLocation
 from apps.drivers.models import DriverProfile
 from apps.shipments.models import Shipment
+
 
 class DriverLocationConsumer(AsyncWebsocketConsumer):
 
@@ -16,27 +18,22 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
             await self.close(code=4001)
             return
 
-        try:
-            self.shipment_id = int(self.scope["url_route"]["kwargs"]["shipment_id"])
-            self.group_name = f"shipment_{self.shipment_id}"
+        self.shipment_id = self.scope["url_route"]["kwargs"]["shipment_id"]
+        self.group_name = f"shipment_{self.shipment_id}"
 
-            authorized = await self.is_authorized()
-            if not authorized:
-                await self.close(code=4003)
-                return
+        authorized = await self.is_authorized()
+        if not authorized:
+            await self.close(code=4003)
+            return
 
-            await self.channel_layer.group_add(
-                self.group_name,
-                self.channel_name
-            )
+        await self.channel_layer.group_add(
+            self.group_name,
+            self.channel_name
+        )
 
-            await self.accept()
+        await self.accept()
 
-            print(f"CONNECTED: user={self.user.id}, shipment={self.shipment_id}")
-
-        except Exception as e:
-            print("CONNECT ERROR:", e)
-            await self.close()
+        print(f"CONNECTED: user={self.user.id}, shipment={self.shipment_id}")
 
     async def disconnect(self, close_code):
         if hasattr(self, "group_name"):
@@ -45,43 +42,42 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
                 self.channel_name
             )
 
-        print(f"DISCONNECTED: {getattr(self, 'group_name', 'unknown')}")
+        print(f"DISCONNECTED: user={self.user.id}")
 
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
 
-            if data.get("type") == "ping":
-                await self.send(text_data=json.dumps({"type": "pong"}))
+            lat = data.get("lat")
+            lng = data.get("lng")
+
+            if lat is None or lng is None:
                 return
 
-            try:
-                lat = float(data.get("lat"))
-                lng = float(data.get("lng"))
-            except (TypeError, ValueError):
-                return
+            # force safe float conversion
+            lat = float(lat)
+            lng = float(lng)
 
             await self.save_location(lat, lng)
 
             await self.channel_layer.group_send(
                 self.group_name,
                 {
-                    "type": "location_update",
-                    "lat": lat,
-                    "lng": lng,
+                    "type": "send_location",
+                    "data": {
+                        "driver_id": self.user.id,
+                        "lat": lat,
+                        "lng": lng,
+                    }
                 }
             )
 
         except Exception as e:
             print("RECEIVE ERROR:", e)
 
-    async def location_update(self, event):
-        await self.send(text_data=json.dumps({
-            "lat": event["lat"],
-            "lng": event["lng"],
-        }))
+    async def send_location(self, event):
+        await self.send(text_data=json.dumps(event["data"]))
 
-    # DATABASE HELPERS
     @sync_to_async
     def save_location(self, lat, lng):
         try:
@@ -94,7 +90,7 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
                 }
             )
 
-        except DriverProfile.DoesNotExist:
+        except ObjectDoesNotExist:
             print("Driver profile not found")
 
     @sync_to_async
