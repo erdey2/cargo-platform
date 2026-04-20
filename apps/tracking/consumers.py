@@ -135,9 +135,12 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
 
     @sync_to_async
     def is_authorized(self):
-        print("AUTH CHECK:", self.user, self.user.role, self.shipment_id)
+        print("AUTH DEBUG:")
+        print("USER:", self.user)
+        print("ROLE FIELD:", getattr(self.user, "role", None))
 
-        if self.user.role in ["admin", "super_admin"]:
+        if getattr(self.user, "role", None) in ["admin", "super_admin"]:
+            print("ADMIN ACCESS GRANTED")
             return True
 
         if self.user.role == "driver":
@@ -152,4 +155,5 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
                 customer=self.user
             ).exists()
 
+        print("ACCESS DENIED")
         return False
