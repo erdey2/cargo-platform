@@ -3,11 +3,9 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
 from django.contrib.gis.geos import Point
 from django.core.exceptions import ObjectDoesNotExist
-
 from apps.tracking.models import DriverLocation
 from apps.drivers.models import DriverProfile
 from apps.shipments.models import Shipment
-
 
 class DriverLocationConsumer(AsyncWebsocketConsumer):
 
@@ -19,7 +17,9 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
             return
 
         self.shipment_id = self.scope["url_route"]["kwargs"]["shipment_id"]
-        self.group_name = f"shipment_{self.shipment_id}"
+
+        self.role = await self.get_role()
+        self.group_name = f"shipment_{self.shipment_id}_{self.role}"
 
         authorized = await self.is_authorized()
         if not authorized:
@@ -33,50 +33,52 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
 
         await self.accept()
 
-        print(f"CONNECTED: user={self.user.id}, shipment={self.shipment_id}")
+        print(f"CONNECTED: user={self.user.id}, role={self.role}")
 
     async def disconnect(self, close_code):
-        if hasattr(self, "group_name"):
-            await self.channel_layer.group_discard(
-                self.group_name,
-                self.channel_name
-            )
-
-        print(f"DISCONNECTED: user={self.user.id}")
+        await self.channel_layer.group_discard(
+            self.group_name,
+            self.channel_name
+        )
 
     async def receive(self, text_data):
-        try:
-            data = json.loads(text_data)
+        data = json.loads(text_data)
 
-            lat = data.get("lat")
-            lng = data.get("lng")
+        lat = float(data.get("lat"))
+        lng = float(data.get("lng"))
 
-            if lat is None or lng is None:
-                return
+        await self.save_location(lat, lng)
 
-            # force safe float conversion
-            lat = float(lat)
-            lng = float(lng)
+        payload = {
+            "event": "driver.location",
+            "data": {
+                "driver_id": self.user.id,
+                "lat": lat,
+                "lng": lng
+            }
+        }
 
-            await self.save_location(lat, lng)
+        # broadcast to customer + admin ONLY (driver does not need echo)
+        await self.channel_layer.group_send(
+            f"shipment_{self.shipment_id}_customer",
+            {"type": "send_location", "payload": payload}
+        )
 
-            await self.channel_layer.group_send(
-                self.group_name,
-                {
-                    "type": "send_location",
-                    "data": {
-                        "driver_id": self.user.id,
-                        "lat": lat,
-                        "lng": lng,
-                    }
-                }
-            )
-
-        except Exception as e:
-            print("RECEIVE ERROR:", e)
+        await self.channel_layer.group_send(
+            f"shipment_{self.shipment_id}_admin",
+            {"type": "send_location", "payload": payload}
+        )
 
     async def send_location(self, event):
-        await self.send(text_data=json.dumps(event["data"]))
+        await self.send(text_data=json.dumps(event["payload"]))
+
+    @sync_to_async
+    def get_role(self):
+        if self.user.groups.filter(name="drivers").exists():
+            return "driver"
+        elif self.user.groups.filter(name="admins").exists():
+            return "admin"
+        return "customer"
 
     @sync_to_async
     def save_location(self, lat, lng):

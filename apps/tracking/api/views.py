@@ -17,32 +17,8 @@ from channels.layers import get_channel_layer
 
 @extend_schema(tags=["Driver Location"])
 class UpdateDriverLocationView(APIView):
-
     permission_classes = [IsAuthenticated, IsDriver]
 
-    @extend_schema(
-        summary="Update driver location",
-        description=(
-            "Update the current location of the authenticated driver.\n\n"
-            "This will:\n"
-            "- Validate latitude and longitude\n"
-            "- Update or create driver location\n"
-            "- Mark driver as online\n"
-        ),
-        request={
-            "application/json": {
-                "type": "object",
-                "properties": {
-                    "lat": {"type": "number", "example": 9.03},
-                    "lng": {"type": "number", "example": 38.74},
-                    "heading": {"type": "number", "example": 90},
-                    "speed": {"type": "number", "example": 60},
-                },
-                "required": ["lat", "lng"],
-            }
-        },
-        responses={200: DriverLocationSerializer},
-    )
     def post(self, request):
 
         driver = DriverProfile.objects.filter(user=request.user).first()
@@ -55,42 +31,63 @@ class UpdateDriverLocationView(APIView):
         if lat is None or lng is None:
             raise ValidationError("Latitude and longitude are required.")
 
-        lat, lng = float(lat), float(lng)
+        lat = float(lat)
+        lng = float(lng)
 
         location = Point(lng, lat, srid=4326)
 
+        # SAVE DRIVER LOCATION (DB)
         driver_location, _ = DriverLocation.objects.update_or_create(
             driver=driver,
             defaults={
                 "location": location,
                 "heading": request.data.get("heading"),
                 "speed": request.data.get("speed"),
-                "is_online": True
+                "is_online": True,
             }
         )
 
-        # REAL-TIME SEND
+        # FIND ACTIVE SHIPMENT
         shipment = Shipment.objects.filter(
             driver=driver,
             status="assigned"
         ).first()
 
+        # REAL-TIME BROADCAST
         if shipment:
             channel_layer = get_channel_layer()
 
-            async_to_sync(channel_layer.group_send)(
-                f"shipment_{shipment.id}",
-                {
-                    "type": "driver_location",
+            payload = {
+                "type": "send_location",
+                "payload": {
+                    "event": "driver.location",
                     "data": {
-                        "type": "driver_location",
                         "driver_id": driver.id,
+                        "shipment_id": shipment.id,
                         "lat": lat,
                         "lng": lng,
                         "heading": request.data.get("heading"),
                         "speed": request.data.get("speed"),
                     }
                 }
+            }
+
+            # CUSTOMER TRACKING
+            async_to_sync(channel_layer.group_send)(
+                f"shipment_{shipment.id}_customer",
+                payload
+            )
+
+            # ADMIN TRACKING
+            async_to_sync(channel_layer.group_send)(
+                f"shipment_{shipment.id}_admin",
+                payload
+            )
+
+            # DRIVER (optional sync confirmation)
+            async_to_sync(channel_layer.group_send)(
+                f"shipment_{shipment.id}_driver",
+                payload
             )
 
         return Response(DriverLocationSerializer(driver_location).data)
