@@ -10,12 +10,62 @@ from .serializers import DriverLocationSerializer
 from apps.drivers.models import DriverProfile
 from apps.shipments.models import Shipment
 from core.permissions import IsDriver
-from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse, OpenApiExample
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
 
-@extend_schema(tags=["Driver Location"])
+@extend_schema(
+    tags=["Driver Location"],
+    summary="Update driver location (Real-time)",
+    description="""
+Driver sends live GPS coordinates.
+
+### What happens:
+- Saves driver location in database
+- Marks driver as online
+- Broadcasts location to:
+  - Customer (tracking screen)
+  - Admin (dashboard)
+  - Driver (optional confirmation)
+
+### Used for:
+real-time tracking
+""",
+    request={
+        "application/json": {
+            "type": "object",
+            "properties": {
+                "lat": {"type": "number", "example": 9.03},
+                "lng": {"type": "number", "example": 38.74},
+                "heading": {"type": "number", "example": 90},
+                "speed": {"type": "number", "example": 60},
+            },
+            "required": ["lat", "lng"],
+        }
+    },
+    responses={
+        200: OpenApiResponse(
+            response=DriverLocationSerializer,
+            description="Location updated and broadcasted successfully",
+            examples=[
+                OpenApiExample(
+                    "Success",
+                    value={
+                        "driver": 5,
+                        "location": {
+                            "lat": 9.03,
+                            "lng": 38.74
+                        },
+                        "heading": 90,
+                        "speed": 60,
+                        "is_online": True
+                    }
+                )
+            ]
+        )
+    }
+)
 class UpdateDriverLocationView(APIView):
     permission_classes = [IsAuthenticated, IsDriver]
 
@@ -98,18 +148,24 @@ class DriverLocationView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        summary="Get driver location",
-        description="Retrieve the current location of a specific driver.",
+        tags=["Driver Location"],
+        summary="Get driver current location",
+        description="Retrieve latest GPS position of a driver.",
         parameters=[
             OpenApiParameter(
                 name="driver_id",
-                description="ID of the driver",
+                description="Driver ID",
                 required=True,
                 type=int,
                 location="path",
             )
         ],
-        responses={200: DriverLocationSerializer},
+        responses={
+            200: OpenApiResponse(
+                response=DriverLocationSerializer,
+                description="Driver location retrieved"
+            )
+        },
     )
     def get(self, request, driver_id):
 
@@ -127,15 +183,19 @@ class NearbyDriversView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
+        tags=["Driver Location"],
         summary="Find nearby drivers",
-        description=(
-            "Find drivers within a 10km radius from a given location.\n\n"
-            "Filters:\n"
-            "- Only available drivers\n"
-            "- Only online drivers\n"
-            "- Sorted by distance\n"
-            "- Maximum 10 drivers returned"
-        ),
+        description="""
+    Find drivers within 10km radius.
+
+    ### Filters:
+    - Only online drivers
+    - Only available drivers
+
+    ### Sorting:
+    - By distance (closest first)
+    - Then by rating
+    """,
         parameters=[
             OpenApiParameter(
                 name="lat",
@@ -152,7 +212,12 @@ class NearbyDriversView(APIView):
                 location="query",
             ),
         ],
-        responses={200: DriverLocationSerializer(many=True)},
+        responses={
+            200: OpenApiResponse(
+                response=DriverLocationSerializer(many=True),
+                description="List of nearby drivers"
+            )
+        },
     )
     def get(self, request):
 
@@ -183,3 +248,99 @@ class NearbyDriversView(APIView):
 
         serializer = DriverLocationSerializer(drivers, many=True)
         return Response(serializer.data)
+
+class TrackingWebSocketDocs(APIView):
+
+    @extend_schema(
+        tags=["WebSocket - Tracking"],
+        operation_id="shipment_tracking_websocket",
+        summary="Real-time Shipment Tracking WebSocket",
+        description="""
+### Shipment Tracking WebSocket API
+This WebSocket enables real-time tracking of shipments between drivers, customers, and admins.
+
+---
+### Connection URL
+`wss://cargo-platform.onrender.com/ws/shipment/{shipment_id}/?token=ACCESS_TOKEN`
+---
+
+### Roles & Capabilities
+| Role | Capabilities |
+| Driver | Sends live GPS updates (every 2–5 seconds) |
+| Customer | Receives real-time updates for their specific shipment |
+| Admin | Receives all tracking updates for monitoring purposes |
+
+### Event-Driven Flow
+1. Client → Server (Driver Only): Driver sends location JSON.
+2. Server → Clients (Broadcast): System broadcasts updates to the Customer and Admin.
+        """,
+        parameters=[
+            OpenApiParameter(
+                name="shipment_id",
+                type=int,
+                location="path",
+                description="The unique ID of the shipment to track.",
+                required=True
+            ),
+            OpenApiParameter(
+                name="token",
+                type=str,
+                location="query",
+                description="JWT Access Token for authentication.",
+                required=True
+            ),
+        ],
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "lat": {"type": "number", "format": "float", "example": 9.03},
+                    "lng": {"type": "number", "format": "float", "example": 38.74},
+                    "heading": {"type": "number", "format": "float", "example": 90, "nullable": True},
+                    "speed": {"type": "number", "format": "float", "example": 60, "nullable": True}
+                },
+                "required": ["lat", "lng"]
+            }
+        },
+        responses={
+            101: OpenApiResponse(
+                description="Switching Protocols - WebSocket connection established.",
+                examples=[
+                    OpenApiExample(
+                        name="Driver Location Broadcast (Server -> Client)",
+                        value={
+                            "event": "driver.location",
+                            "data": {
+                                "driver_id": 5,
+                                "shipment_id": 63,
+                                "lat": 9.03,
+                                "lng": 38.74,
+                                "heading": 90,
+                                "speed": 60,
+                                "timestamp": "2026-04-20T17:08:00Z"
+                            }
+                        }
+                    )
+                ],
+            )
+        },
+        examples=[
+            OpenApiExample(
+                name="Driver Sending GPS Update (Client -> Server)",
+                value={
+                    "lat": 9.03,
+                    "lng": 38.74,
+                    "heading": 90,
+                    "speed": 60
+                },
+                request_only=True,
+            ),
+        ],
+    )
+    def get(self, request, shipment_id=None):
+        """
+        Dummy endpoint used only for OpenAPI/Swagger documentation.
+        """
+        return Response({
+            "message": "This is a documentation-only endpoint for the Tracking WebSocket. Use the wss:// protocol to connect."
+        })
