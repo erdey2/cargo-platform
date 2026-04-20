@@ -18,3 +18,4 @@ application = ProtocolTypeRouter({
         )
     ),
 })
+print("WEBSOCKET ROUTES LOADED")

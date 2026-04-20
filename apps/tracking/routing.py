@@ -1,6 +1,6 @@
-from django.urls import path
+from django.urls import re_path
 from .consumers import DriverLocationConsumer
 
 websocket_urlpatterns = [
-    path("ws/shipment/<int:shipment_id>/", DriverLocationConsumer.as_asgi()),
+    re_path(r"ws/shipment/(?P<shipment_id>\d+)/$", DriverLocationConsumer.as_asgi()),
 ]
