@@ -110,10 +110,12 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
     # HELPERS
     @sync_to_async
     def get_role(self):
-        if self.user.is_staff:
-            return "admin"
-        if self.user.groups.filter(name="drivers").exists():
+        if DriverProfile.objects.filter(user=self.user).exists():
             return "driver"
+
+        if self.user.is_staff or self.user.is_superuser:
+            return "admin"
+
         return "customer"
 
     @sync_to_async

@@ -188,11 +188,11 @@ class NearbyDriversView(APIView):
         description="""
     Find drivers within 10km radius.
 
-    ### Filters:
+    Filters:
     - Only online drivers
     - Only available drivers
 
-    ### Sorting:
+    Sorting:
     - By distance (closest first)
     - Then by rating
     """,
