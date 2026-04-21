@@ -14,7 +14,8 @@ class VehicleSimpleSerializer(serializers.ModelSerializer):
             "id",
             "plate_number",
             "vehicle_type",
-            "capacity",
+            "capacity_weight",
+            "capacity_volume",
         ]
 
 class VehicleSerializer(serializers.ModelSerializer):

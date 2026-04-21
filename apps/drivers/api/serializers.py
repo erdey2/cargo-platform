@@ -8,7 +8,8 @@ class DriverSimpleSerializer(serializers.ModelSerializer):
         model = DriverProfile
         fields = [
             "id",
-            "email",
+            "user",
             "rating",
+            "total_trips",
             "is_available",
         ]
