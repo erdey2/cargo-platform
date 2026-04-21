@@ -216,11 +216,17 @@ class DriverResponseView(APIView):
 
 @extend_schema(
     summary="List driver offers",
-    description="Retrieve driver offers. Drivers see their own offers, admins see all offers.",
+    description=(
+        "Retrieve driver offers.\n\n"
+        "- Drivers → see ONLY their offers\n"
+        "- Admins → see ALL offers\n\n"
+        "Optional filter:\n"
+        "- status: pending, accepted, rejected, expired"
+    ),
     parameters=[
         OpenApiParameter(
             name="status",
-            description="Filter offers by status (pending, accepted, rejected, expired)",
+            description="Filter by offer status",
             required=False,
             type=str,
         ),
@@ -238,20 +244,27 @@ class DriverOfferViewSet(viewsets.ReadOnlyModelViewSet):
         user = self.request.user
         status_param = self.request.query_params.get("status")
 
-        # Admins → see all offers
+        base_qs = DriverOffer.objects.select_related(
+            "shipment",
+            "driver__user"
+        )
+
         if user.is_staff or user.is_superuser:
-            queryset = DriverOffer.objects.all()
+            queryset = base_qs
 
-        # Drivers → only their offers
         elif getattr(user, "role", None) == "driver":
-            queryset = DriverOffer.objects.filter(driver__user=user)
+            queryset = base_qs.filter(driver__user=user)
 
-        # Other roles → no access (empty queryset)
         else:
             return DriverOffer.objects.none()
 
-        # Optional filtering
+        # VALIDATE STATUS FILTER
         if status_param:
+            valid_statuses = [choice[0] for choice in DriverOffer.STATUS_CHOICES]
+
+            if status_param not in valid_statuses:
+                return DriverOffer.objects.none()
+
             queryset = queryset.filter(status=status_param)
 
         return queryset.order_by("-created_at")

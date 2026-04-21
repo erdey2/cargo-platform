@@ -12,10 +12,19 @@ class DriverPreviewSerializer(serializers.Serializer):
 
 class DriverOfferSerializer(serializers.ModelSerializer):
     driver_email = serializers.EmailField(source="driver.user.email", read_only=True)
+
     pickup_address = serializers.CharField(source="shipment.pickup_address", read_only=True)
     dropoff_address = serializers.CharField(source="shipment.dropoff_address", read_only=True)
     weight = serializers.FloatField(source="shipment.weight", read_only=True)
     volume = serializers.FloatField(source="shipment.volume", read_only=True)
+
+    estimated_price = serializers.DecimalField(
+        source="shipment.estimated_price",
+        max_digits=10,
+        decimal_places=2,
+        read_only=True
+    )
+
     time_left_seconds = serializers.SerializerMethodField()
     wait_time_seconds = serializers.SerializerMethodField()
 
@@ -33,6 +42,7 @@ class DriverOfferSerializer(serializers.ModelSerializer):
             "dropoff_address",
             "weight",
             "volume",
+            "estimated_price",
             "time_left_seconds",
             "wait_time_seconds",
             "created_at",
