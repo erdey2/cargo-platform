@@ -31,7 +31,7 @@ class OfferService:
 
             print(f"Offer expired for {driver.user.email}")
 
-            # 🔔 Notify DRIVER (offer expired)
+            # Notify DRIVER (offer expired)
             notify_user(
                 user=driver.user,
                 title="Offer Expired",

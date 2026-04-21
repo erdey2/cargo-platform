@@ -9,6 +9,8 @@ from apps.matching.models import DriverOffer
 from apps.shipments.models import ShipmentStatusHistory
 from apps.vehicles.models import Vehicle
 from apps.notifications.services import notify_user
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 
 class MatchingService:
@@ -194,11 +196,30 @@ class MatchingService:
                 seconds=MatchingService.OFFER_TIMEOUT_SECONDS
             )
         )
-        # Notify CUSTOMER
+
+        channel_layer = get_channel_layer()
+
+        # Notify customer (REAL-TIME)
+        async_to_sync(channel_layer.group_send)(
+            f"shipment_{shipment.id}_customer",
+            {
+                "type": "driver_found_event",
+                "payload": {
+                    "event": "driver_found",
+                    "data": {
+                        "driver_id": driver.id,
+                        "shipment_id": shipment.id,
+                        "status": "temporary"
+                    }
+                }
+            }
+        )
+
+        # Push notification
         notify_user(
             user=shipment.customer,
-            title="Driver Found for Your Shipment",
-            message="A driver has been found and notified.",
+            title="Driver Found",
+            message="A driver is reviewing your request.",
             data={
                 "type": "driver_found",
                 "shipment_id": shipment.id,
@@ -207,7 +228,7 @@ class MatchingService:
             }
         )
 
-        # Notify DRIVER
+        # Notify driver
         notify_user(
             user=driver.user,
             title="New Delivery Request",
@@ -220,5 +241,3 @@ class MatchingService:
         )
 
         return offer
-
-
