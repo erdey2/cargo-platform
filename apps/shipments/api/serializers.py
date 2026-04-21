@@ -7,6 +7,19 @@ class CargoTypeSerializer(serializers.ModelSerializer):
         model = CargoType
         fields = "__all__"
 
+class ShipmentSimpleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Shipment
+        fields = [
+            "id",
+            "pickup_address",
+            "dropoff_address",
+            "weight",
+            "volume",
+            "estimated_price",
+            "status",
+        ]
+        
 class ShipmentSerializer(serializers.ModelSerializer):
     customer = serializers.ReadOnlyField(source="customer.id")
 

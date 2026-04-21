@@ -25,19 +25,25 @@ from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiPara
     ),
 )
 class AssignmentViewSet(viewsets.ReadOnlyModelViewSet):
-
     serializer_class = AssignmentSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
 
-        if user.is_staff:
-            return Assignment.objects.all()
-
-        return Assignment.objects.filter(
-            driver__user=user
+        queryset = Assignment.objects.select_related(
+            "shipment",
+            "driver__user",
+            "vehicle"
         )
+
+        if user.role in ["admin", "super_admin"] or user.is_staff:
+            return queryset
+
+        if user.role == "driver":
+            return queryset.filter(driver__user=user)
+
+        raise PermissionDenied("Only drivers and admins can view assignments")
 
 @extend_schema(tags=["Assignments"])
 class AssignmentStatusUpdateView(APIView):
@@ -65,7 +71,7 @@ class AssignmentStatusUpdateView(APIView):
                 description="ID of the assignment",
                 required=True,
                 type=int,
-                location=OpenApiParameter.PATH,
+                location="path",
             )
         ],
         request=AssignmentStatusUpdateSerializer,

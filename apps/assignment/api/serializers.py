@@ -1,19 +1,21 @@
 from rest_framework import serializers
 from ..models import Assignment
+from apps.shipments.api.serializers import ShipmentSimpleSerializer
+from apps.drivers.api.serializers import DriverSimpleSerializer
+from apps.vehicles.api.serializers import VehicleSimpleSerializer
 
 class AssignmentSerializer(serializers.ModelSerializer):
-
-    shipment_id = serializers.ReadOnlyField(source="shipment.id")
-    driver_id = serializers.ReadOnlyField(source="driver.id")
-    vehicle_id = serializers.ReadOnlyField(source="vehicle.id")
+    shipment = ShipmentSimpleSerializer(read_only=True)
+    driver = DriverSimpleSerializer(read_only=True)
+    vehicle = VehicleSimpleSerializer(read_only=True)
 
     class Meta:
         model = Assignment
         fields = [
             "id",
-            "shipment_id",
-            "driver_id",
-            "vehicle_id",
+            "shipment",
+            "driver",
+            "vehicle",
             "status",
             "accepted_at",
             "picked_up_at",

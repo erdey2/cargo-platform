@@ -7,6 +7,16 @@ class VehicleTypeSerializer(serializers.ModelSerializer):
         model = VehicleType
         fields = "__all__"
 
+class VehicleSimpleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vehicle
+        fields = [
+            "id",
+            "plate_number",
+            "vehicle_type",
+            "capacity",
+        ]
+
 class VehicleSerializer(serializers.ModelSerializer):
 
     driver = serializers.ReadOnlyField(source="driver.id")
