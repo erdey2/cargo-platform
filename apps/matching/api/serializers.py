@@ -75,4 +75,7 @@ class DriverResponseSerializer(serializers.Serializer):
         ("accept", "Accept"),
         ("reject", "Reject"),
     )
-    action = serializers.ChoiceField(choices=ACTION_CHOICES)
+    action = serializers.ChoiceField(
+        choices=ACTION_CHOICES,
+        help_text="Action to perform: 'accept' or 'reject'"
+    )

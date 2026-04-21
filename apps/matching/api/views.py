@@ -56,7 +56,13 @@ class MatchDriversView(APIView):
 
 @extend_schema(
     summary="Driver responds to an offer",
-    description="Allows a driver to accept or reject a delivery offer.",
+    description="""
+Allows a driver to accept or reject a delivery offer.
+
+### Possible actions:
+- `accept` → Driver accepts the shipment
+- `reject` → Driver rejects the offer and next driver is matched
+""",
     request=DriverResponseSerializer,
     parameters=[
         OpenApiParameter(
@@ -64,12 +70,24 @@ class MatchDriversView(APIView):
             description="ID of the driver offer",
             required=True,
             type=int,
-            location="path",
+            location=OpenApiParameter.PATH,
+        ),
+    ],
+    examples=[
+        OpenApiExample(
+            name="Accept Request",
+            value={"action": "accept"},
+            request_only=True,
+        ),
+        OpenApiExample(
+            name="Reject Request",
+            value={"action": "reject"},
+            request_only=True,
         ),
     ],
     responses={
         200: OpenApiResponse(
-            description="Response message",
+            description="Success response",
             examples=[
                 OpenApiExample(
                     name="Accepted",
