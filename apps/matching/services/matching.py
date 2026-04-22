@@ -114,7 +114,6 @@ class MatchingService:
 
     @staticmethod
     def create_offer(shipment, driver, vehicle):
-
         offer, created = DriverOffer.objects.get_or_create(
             shipment=shipment,
             driver=driver,
@@ -130,7 +129,12 @@ class MatchingService:
         if not created:
             return offer
 
-        print("OFFER CREATED:", offer.id)
+        driver_location = DriverLocation.objects.filter(
+            driver=driver
+        ).first()
+
+        lat = driver_location.location.y if driver_location and driver_location.location else None
+        lng = driver_location.location.x if driver_location and driver_location.location else None
 
         channel_layer = get_channel_layer()
 
@@ -141,15 +145,25 @@ class MatchingService:
                 "payload": {
                     "event": "driver_found",
                     "data": {
-                        "driver_id": driver.id,
+                        "driver": {
+                            "id": driver.id,
+                            "name": driver.user.get_full_name(),
+                            "rating": getattr(driver, "rating", None),
+                        },
+                        "vehicle": {
+                            "id": vehicle.id,
+                            "type": getattr(vehicle, "vehicle_type", None),
+                        },
+                        "location": {
+                            "lat": lat,
+                            "lng": lng
+                        },
                         "shipment_id": shipment.id,
                         "status": "temporary"
                     }
                 }
             }
         )
-
-        print("EVENT SENT TO:", f"shipment_{shipment.id}_customer")
 
         notify_user(
             user=shipment.customer,

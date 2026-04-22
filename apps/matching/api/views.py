@@ -70,7 +70,7 @@ Allows a driver to accept or reject a delivery offer.
             description="ID of the driver offer",
             required=True,
             type=int,
-            location=OpenApiParameter.PATH,
+            location="path",
         ),
     ],
     examples=[
