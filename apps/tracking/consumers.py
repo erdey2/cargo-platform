@@ -1,4 +1,5 @@
 import json
+import traceback
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
 from django.contrib.gis.geos import Point
@@ -8,7 +9,6 @@ from apps.tracking.models import DriverLocation
 from apps.drivers.models import DriverProfile
 from apps.shipments.models import Shipment
 from apps.matching.models import DriverOffer
-
 
 class DriverLocationConsumer(AsyncWebsocketConsumer):
 
@@ -23,7 +23,6 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
             self.shipment_id = self.scope["url_route"]["kwargs"]["shipment_id"]
             self.role = await self.get_role()
 
-            # group per role
             self.group_name = f"shipment_{self.shipment_id}_{self.role}"
 
             if not await self.is_authorized():
@@ -33,16 +32,24 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_add(self.group_name, self.channel_name)
             await self.accept()
 
+            print(f"CONNECTED USER: {self.user.id}, ROLE: {self.role}, GROUP: {self.group_name}")
+
+            # Send existing offer if driver connects after receiving offer but before accepting
+            await self.send_existing_offer()
+
         except Exception as e:
             print("CONNECT ERROR:", e)
+            traceback.print_exc()
             await self.close()
 
     async def disconnect(self, close_code):
-        if hasattr(self, "group_name"):
+        if getattr(self, "group_name", None):
             await self.channel_layer.group_discard(
                 self.group_name,
                 self.channel_name
             )
+
+        print(f"DISCONNECTED: {getattr(self, 'group_name', 'no-group')}")
 
     async def receive(self, text_data):
         try:
@@ -58,7 +65,7 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
             if self.role != "driver":
                 return
 
-            # VALIDATE driver belongs to shipment (important!)
+            # Validate driver belongs to shipment
             is_valid = await self.is_valid_driver_for_shipment()
             if not is_valid:
                 return
@@ -87,13 +94,13 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
                 }
             }
 
-            # Send to customer
+            # Broadcast to customer
             await self.channel_layer.group_send(
                 f"shipment_{self.shipment_id}_customer",
                 {"type": "location_event", "payload": payload}
             )
 
-            # Send to admin
+            # Broadcast to admin
             await self.channel_layer.group_send(
                 f"shipment_{self.shipment_id}_admin",
                 {"type": "location_event", "payload": payload}
@@ -101,13 +108,14 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
 
         except Exception as e:
             print("RECEIVE ERROR:", e)
+            traceback.print_exc()
 
-    # EVENT HANDLERS
-
+    # EVENTS
     async def location_event(self, event):
         await self.send(text_data=json.dumps(event["payload"]))
 
     async def driver_found_event(self, event):
+        print("RECEIVED DRIVER FOUND:", event)
         await self.send(text_data=json.dumps(event["payload"]))
 
     # HELPERS
@@ -178,11 +186,11 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
 
     @sync_to_async
     def get_driver_status(self):
+        shipment = Shipment.objects.filter(
+            id=self.shipment_id
+        ).select_related("driver__user").first()
 
-        if Shipment.objects.filter(
-            id=self.shipment_id,
-            driver__user=self.user
-        ).exists():
+        if shipment and shipment.driver and shipment.driver.user_id == self.user.id:
             return "assigned"
 
         if DriverOffer.objects.filter(
@@ -193,3 +201,30 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
             return "temporary"
 
         return "unknown"
+
+    @sync_to_async
+    def get_existing_offer(self):
+        qs = DriverOffer.objects.filter(
+            shipment_id=self.shipment_id,
+            status="pending"
+        ).select_related("driver")
+
+        if self.user.role == "driver":
+            qs = qs.filter(driver__user=self.user)
+
+        return qs.order_by("-created_at").first()
+
+    async def send_existing_offer(self):
+        offer = await self.get_existing_offer()
+
+        if not offer:
+            return
+
+        await self.send(text_data=json.dumps({
+            "event": "driver_found",
+            "data": {
+                "driver_id": offer.driver.id,
+                "shipment_id": self.shipment_id,
+                "status": "temporary"
+            }
+        }))
