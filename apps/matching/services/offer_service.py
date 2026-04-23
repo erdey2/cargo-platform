@@ -19,6 +19,7 @@ class OfferService:
                 expires_at__lte=now
             )
         )
+        print(f"Found {expired_offers.count()} expired offers")
 
         for offer in expired_offers:
 

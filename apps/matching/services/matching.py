@@ -1,4 +1,4 @@
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import Exists, OuterRef
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.measure import D
@@ -7,7 +7,7 @@ from datetime import timedelta
 
 from apps.tracking.models import DriverLocation
 from apps.matching.models import DriverOffer
-from apps.shipments.models import ShipmentStatusHistory
+from apps.shipments.models import Shipment, ShipmentStatusHistory
 from apps.vehicles.models import Vehicle
 from apps.notifications.services import notify_user
 
@@ -18,7 +18,7 @@ from asgiref.sync import async_to_sync
 class MatchingService:
     SEARCH_RADIUS_KM = 10
     MAX_CANDIDATES = 5
-    OFFER_TIMEOUT_SECONDS = 600
+    OFFER_TIMEOUT_SECONDS = 60
 
     @staticmethod
     def get_valid_vehicle_subquery(shipment):
@@ -71,7 +71,12 @@ class MatchingService:
     @transaction.atomic
     def match_driver(shipment):
 
+        shipment = Shipment.objects.select_for_update().get(id=shipment.id)
+
         if shipment.status != "matching":
+            return None
+
+        if DriverOffer.objects.filter(shipment=shipment, status="pending").exists():
             return None
 
         drivers = MatchingService.find_nearest_drivers(shipment)
@@ -82,7 +87,7 @@ class MatchingService:
 
             ShipmentStatusHistory.objects.create(
                 shipment=shipment,
-                status=shipment.status,
+                status="no_driver",
                 notes="No drivers available"
             )
 
@@ -92,12 +97,12 @@ class MatchingService:
                 message="Try again later.",
                 data={"type": "no_driver", "shipment_id": shipment.id}
             )
-
             return None
 
         for d in drivers:
             driver = d.driver
 
+            # Avoid duplicate offers
             if DriverOffer.objects.filter(
                 shipment=shipment,
                 driver=driver
@@ -108,36 +113,30 @@ class MatchingService:
             if not vehicle:
                 continue
 
-            return MatchingService.create_offer(shipment, driver, vehicle)
+            return MatchingService.create_offer(shipment, driver, vehicle, d)
 
         return None
 
     @staticmethod
-    def create_offer(shipment, driver, vehicle):
-        offer, created = DriverOffer.objects.get_or_create(
-            shipment=shipment,
-            driver=driver,
-            defaults={
-                "vehicle": vehicle,
-                "status": "pending",
-                "expires_at": timezone.now() + timedelta(
+    def create_offer(shipment, driver, vehicle, driver_location_obj):
+        try:
+            offer = DriverOffer.objects.create(
+                shipment=shipment,
+                driver=driver,
+                vehicle=vehicle,
+                status="pending",
+                expires_at=timezone.now() + timedelta(
                     seconds=MatchingService.OFFER_TIMEOUT_SECONDS
                 )
-            }
-        )
+            )
+        except IntegrityError:
+            return DriverOffer.objects.get(shipment=shipment, driver=driver)
 
-        if not created:
-            return offer
+        lat = driver_location_obj.location.y if driver_location_obj.location else None
+        lng = driver_location_obj.location.x if driver_location_obj.location else None
 
-        driver_location = DriverLocation.objects.filter(
-            driver=driver
-        ).first()
-
-        lat = driver_location.location.y if driver_location and driver_location.location else None
-        lng = driver_location.location.x if driver_location and driver_location.location else None
-
+        # WebSocket notify
         channel_layer = get_channel_layer()
-
         async_to_sync(channel_layer.group_send)(
             f"shipment_{shipment.id}_customer",
             {
@@ -165,6 +164,7 @@ class MatchingService:
             }
         )
 
+        # Notifications
         notify_user(
             user=shipment.customer,
             title="Driver Found",
