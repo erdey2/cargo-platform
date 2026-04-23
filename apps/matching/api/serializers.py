@@ -2,6 +2,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from ..models import DriverOffer
 from apps.drivers.api.serializers import DriverSimpleSerializer
+from apps.shipments.api.serializers import ShipmentSimpleSerializer
 
 class DriverPreviewSerializer(serializers.Serializer):
     driver_id = serializers.IntegerField(source="driver.id")
@@ -14,6 +15,7 @@ class DriverPreviewSerializer(serializers.Serializer):
 class DriverOfferSerializer(serializers.ModelSerializer):
     driver_email = serializers.EmailField(source="driver.user.email", read_only=True)
     driver = DriverSimpleSerializer(read_only=True)
+    shipment = ShipmentSimpleSerializer(read_only=True)
 
     pickup_address = serializers.CharField(source="shipment.pickup_address", read_only=True)
     dropoff_address = serializers.CharField(source="shipment.dropoff_address", read_only=True)
