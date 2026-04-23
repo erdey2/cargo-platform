@@ -1,6 +1,7 @@
 from django.contrib.gis.geos import Point
 from rest_framework import serializers
 from ..models import Shipment, CargoType, ShipmentStatusHistory
+from apps.drivers.api.serializers import DriverSimpleSerializer
 
 class CargoTypeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -22,6 +23,8 @@ class ShipmentSimpleSerializer(serializers.ModelSerializer):
         
 class ShipmentSerializer(serializers.ModelSerializer):
     customer = serializers.ReadOnlyField(source="customer.id")
+    driver = DriverSimpleSerializer(read_only=True)
+
 
     # Write-only inputs
     pickup_lat = serializers.FloatField(write_only=True)
@@ -126,6 +129,9 @@ class ShipmentSerializer(serializers.ModelSerializer):
         )
 
 class ShipmentStatusHistorySerializer(serializers.ModelSerializer):
+    shipment = ShipmentSimpleSerializer(read_only=True)
+
     class Meta:
         model = ShipmentStatusHistory
-        fields = "__all__"
+        fields = ["id", "shipment", "status", "is_active", "notes", "changed_by", "created_at", "updated_at"]
+        read_only_fields = ["id", "shipment", "status", "created_at", "updated_at"]

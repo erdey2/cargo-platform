@@ -159,7 +159,7 @@ class MatchingService:
                             "lng": lng
                         },
                         "shipment_id": shipment.id,
-                        "status": "temporary"
+                        "status": "matched"
                     }
                 }
             }
