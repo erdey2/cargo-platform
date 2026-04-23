@@ -1,6 +1,8 @@
 from django.utils import timezone
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 from ..models import Assignment
 from apps.shipments.models import ShipmentStatusHistory
 from apps.pricing.services.pricing_service import PriceCalculator
@@ -173,4 +175,38 @@ class AssignmentService:
                 data={"type": "cancelled", "shipment_id": shipment.id}
             )
 
+        # Push shipment status changes to active tracking screens after commit.
+        transaction.on_commit(
+            lambda: AssignmentService.broadcast_status_update(assignment, shipment, new_status)
+        )
+
         return assignment
+
+    @staticmethod
+    def broadcast_status_update(assignment, shipment, status):
+        shipment_id = getattr(shipment, "id", None)
+        assignment_id = getattr(assignment, "id", None)
+
+        if shipment_id is None:
+            return
+
+        payload = {
+            "event": "assignment.status",
+            "data": {
+                "shipment_id": shipment_id,
+                "assignment_id": assignment_id,
+                "status": status,
+                "changed_at": timezone.now().isoformat(),
+                "final_price": getattr(shipment, "final_price", None),
+            },
+        }
+
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            return
+
+        for role in ("customer", "driver", "admin"):
+            async_to_sync(channel_layer.group_send)(
+                f"shipment_{shipment_id}_{role}",
+                {"type": "assignment_status_event", "payload": payload},
+            )

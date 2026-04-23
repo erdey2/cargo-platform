@@ -108,6 +108,9 @@ class DriverLocationConsumer(AsyncWebsocketConsumer):
         print("DRIVER FOUND EVENT:", event)
         await self.send(text_data=json.dumps(event["payload"]))
 
+    async def assignment_status_event(self, event):
+        await self.send(text_data=json.dumps(event["payload"]))
+
     # HELPERS
 
     @sync_to_async

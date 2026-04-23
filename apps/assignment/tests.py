@@ -59,6 +59,29 @@ class AssignmentServiceTests(SimpleTestCase):
         self.assertEqual(updated.shipment.final_price, 123.45)
         self.assertTrue(mock_history_create.called)
 
+    @patch("apps.assignment.services.assignment.async_to_sync", side_effect=lambda fn: fn)
+    @patch("apps.assignment.services.assignment.get_channel_layer")
+    def test_broadcast_status_update_sends_to_shipment_groups(self, mock_get_channel_layer, _async_to_sync):
+        channel_layer = MagicMock()
+        channel_layer.group_send = MagicMock()
+        mock_get_channel_layer.return_value = channel_layer
+
+        assignment = SimpleNamespace(id=10)
+        shipment = SimpleNamespace(id=55, final_price=321.0)
+
+        AssignmentService.broadcast_status_update(assignment, shipment, "in_transit")
+
+        self.assertEqual(channel_layer.group_send.call_count, 3)
+        called_groups = {call.args[0] for call in channel_layer.group_send.call_args_list}
+        self.assertEqual(
+            called_groups,
+            {
+                "shipment_55_customer",
+                "shipment_55_driver",
+                "shipment_55_admin",
+            },
+        )
+
 
 class AssignmentStatusUpdateViewTests(SimpleTestCase):
     def setUp(self):

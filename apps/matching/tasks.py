@@ -5,8 +5,11 @@ from apps.matching.services.offer_service import OfferService
 
 @shared_task
 def start_driver_matching(shipment_id):
-    shipment = Shipment.objects.get(id=shipment_id)
-    MatchingService.match_driver(shipment)
+    try:
+        shipment = Shipment.objects.get(id=shipment_id)
+        MatchingService.match_driver(shipment)
+    except Shipment.DoesNotExist:
+        pass
 
 @shared_task
 def expire_offers_task():

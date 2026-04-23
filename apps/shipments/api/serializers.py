@@ -18,9 +18,16 @@ class ShipmentSimpleSerializer(serializers.ModelSerializer):
             "weight",
             "volume",
             "estimated_price",
-            "status",
         ]
-        
+        read_only_fields = [
+            "id",
+            "pickup_address",
+            "dropoff_address",
+            "weight",
+            "volume",
+            "estimated_price",
+        ]
+
 class ShipmentSerializer(serializers.ModelSerializer):
     customer = serializers.ReadOnlyField(source="customer.id")
     driver = DriverSimpleSerializer(read_only=True)
