@@ -7,6 +7,7 @@ from apps.matching.services.matching import MatchingService
 from apps.pricing.services.pricing_service import PriceCalculator
 from core.permissions import IsAdminOrReadOnly
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiExample
+from apps.matching.tasks import start_driver_matching
 
 @extend_schema(
     tags=["Shipments"]
@@ -134,8 +135,9 @@ class ShipmentViewSet(viewsets.ModelViewSet):
             status=shipment.status,
             changed_by=self.request.user
         )
-
+        # start_driver_matching.delay(shipment.id)
         MatchingService.match_driver(shipment)
+
 
 @extend_schema(
     tags=["Cargo Types"]

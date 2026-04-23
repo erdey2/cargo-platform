@@ -1,7 +1,6 @@
 from django.db import models
 from core.models import BaseModel
 
-
 class Assignment(BaseModel):
 
     STATUS_CHOICES = [

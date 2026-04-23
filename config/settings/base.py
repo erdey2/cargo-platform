@@ -112,6 +112,8 @@ LOCAL_APPS = [
 ]
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
+INSTALLED_APPS += ["django_celery_beat"]
+
 # AUTHENTICATION
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
@@ -184,9 +186,23 @@ CACHES = {
     }
 }
 
+REDIS_URL = os.environ.get("REDIS_URL", default="redis://localhost:6379/0")
 # Celery
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL
+
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Africa/Addis_Ababa'
+
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
+''' CELERY_BEAT_SCHEDULE = {
+    "expire-offers-every-10-seconds": {
+        "task": "apps.matching.tasks.expire_offers_task",
+        "schedule": 10.0,
+    },
+} '''
 
 # Cloudinary Config
 CLOUDINARY_STORAGE = {
@@ -319,13 +335,6 @@ SPECTACULAR_SETTINGS = {
 INTERNAL_IPS = [
     "127.0.0.1",
 ]
-
-CELERY_BEAT_SCHEDULE = {
-    "expire-offers-every-10-seconds": {
-        "task": "apps.matching.tasks.expire_offers_task",
-        "schedule": 10.0,
-    },
-}
 
 GOOGLE_MAPS_API_KEY="AIzaSyB2aFXLMFYNhwHqpH5v_e1Zuh1KFk7xe3c"
 

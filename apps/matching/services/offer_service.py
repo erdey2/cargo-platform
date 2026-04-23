@@ -7,6 +7,7 @@ class OfferService:
 
     @staticmethod
     def expire_and_reassign():
+        from apps.matching.tasks import start_driver_matching
         now = timezone.now()
 
         expired_offers = DriverOffer.objects.select_related(
@@ -59,4 +60,6 @@ class OfferService:
             )
 
             # Assign next driver
+            # start_driver_matching.delay(shipment.id)
+
             MatchingService.match_next_driver(shipment)
