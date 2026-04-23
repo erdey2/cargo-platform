@@ -135,8 +135,9 @@ class ShipmentViewSet(viewsets.ModelViewSet):
             status=shipment.status,
             changed_by=self.request.user
         )
-        # start_driver_matching.delay(shipment.id)
-        MatchingService.match_driver(shipment)
+        start_driver_matching.delay(shipment.id)
+
+        # MatchingService.match_driver(shipment)
 
 
 @extend_schema(

@@ -10,11 +10,14 @@ class OfferService:
         from apps.matching.tasks import start_driver_matching
         now = timezone.now()
 
-        expired_offers = DriverOffer.objects.select_related(
-            "shipment", "driver", "driver__user"
-        ).filter(
-            status="pending",
-            expires_at__lte=now
+        expired_offers = (
+            DriverOffer.objects
+            .select_for_update(skip_locked=True)
+            .select_related("shipment", "driver", "driver__user")
+            .filter(
+                status="pending",
+                expires_at__lte=now
+            )
         )
 
         for offer in expired_offers:
@@ -60,6 +63,6 @@ class OfferService:
             )
 
             # Assign next driver
-            # start_driver_matching.delay(shipment.id)
 
-            MatchingService.match_next_driver(shipment)
+            start_driver_matching.delay(shipment.id)
+            # MatchingService.match_next_driver(shipment)
