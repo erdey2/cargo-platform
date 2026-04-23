@@ -66,3 +66,6 @@ class OfferService:
 
             start_driver_matching.delay(shipment.id)
             # MatchingService.match_next_driver(shipment)
+            print(f"Checking expired offers at {now}")
+            print(f"Found {expired_offers.count()} expired offers")
+

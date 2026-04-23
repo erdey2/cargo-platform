@@ -10,4 +10,5 @@ def start_driver_matching(shipment_id):
 
 @shared_task
 def expire_offers_task():
+    print("Running expire_offers_task")
     OfferService.expire_and_reassign()
