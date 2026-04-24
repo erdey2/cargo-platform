@@ -7,7 +7,7 @@ from apps.matching.services.offer_service import OfferService
 def start_driver_matching(shipment_id):
     try:
         shipment = Shipment.objects.get(id=shipment_id)
-        MatchingService.match_driver(shipment)
+        MatchingService.match_driver(shipment_id)
     except Shipment.DoesNotExist:
         pass
 
