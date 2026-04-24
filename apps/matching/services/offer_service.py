@@ -1,6 +1,7 @@
 from django.utils import timezone
 from django.db import transaction
 from apps.matching.models import DriverOffer
+from apps.shipments.models import Shipment
 from apps.notifications.services import notify_user
 
 
@@ -16,10 +17,8 @@ class OfferService:
             DriverOffer.objects.filter(
                 status="pending",
                 expires_at__lte=now
-            ).values_list("id", flat=True)[:20]  # batch limit
+            ).values_list("id", flat=True)[:20]
         )
-
-        print(f"Found {len(expired_ids)} expired offers")
 
         for offer_id in expired_ids:
             try:
@@ -28,51 +27,41 @@ class OfferService:
                     offer = (
                         DriverOffer.objects
                         .select_for_update(skip_locked=True)
-                        .select_related("shipment", "driver", "driver__user")
+                        .select_related("driver", "driver__user")
                         .get(id=offer_id)
                     )
 
-                    # Safety check
                     if offer.status != "pending":
                         continue
 
-                    shipment = offer.shipment
-                    driver = offer.driver
-
-                    # expire
-                    offer.status = "expired"
-                    offer.save(update_fields=["status"])
-
-                    print(f"Offer expired for {driver.user.email}")
-
-                    # Notify DRIVER
-                    notify_user(
-                        user=driver.user,
-                        title="Offer Expired",
-                        message="You did not respond in time. The request has been reassigned.",
-                        data={
-                            "type": "offer_expired",
-                            "shipment_id": shipment.id,
-                            "offer_id": offer.id
-                        }
+                    shipment = Shipment.objects.select_for_update().get(
+                        id=offer.shipment_id
                     )
 
-                    # Only continue if shipment still needs matching
+                    if shipment.driver is not None:
+                        continue
+
                     if shipment.status != "matching":
                         continue
 
-                    # Notify CUSTOMER
+                    # SAFE TO EXPIRE
+                    offer.status = "expired"
+                    offer.save(update_fields=["status"])
+
+                    notify_user(
+                        user=offer.driver.user,
+                        title="Offer Expired",
+                        message="Request reassigned.",
+                        data={"type": "offer_expired", "shipment_id": shipment.id}
+                    )
+
                     notify_user(
                         user=shipment.customer,
                         title="Finding Another Driver",
-                        message="Previous driver didn’t respond. Searching for another driver...",
-                        data={
-                            "type": "driver_reassign",
-                            "shipment_id": shipment.id
-                        }
+                        message="Searching for another driver...",
+                        data={"type": "driver_reassign", "shipment_id": shipment.id}
                     )
 
-                    # Async matching
                     start_driver_matching.delay(shipment.id)
 
             except DriverOffer.DoesNotExist:

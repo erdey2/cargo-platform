@@ -91,9 +91,11 @@ class MatchingService:
 
     @staticmethod
     @transaction.atomic
-    def match_driver(shipment):
+    def match_driver(shipment_id):
+        shipment = Shipment.objects.select_for_update().get(id=shipment_id)
 
-        shipment = Shipment.objects.select_for_update().get(id=shipment.id)
+        if shipment.driver is not None:
+            return None
 
         if shipment.status != "matching":
             return None
@@ -110,11 +112,7 @@ class MatchingService:
         for d in drivers:
             driver = d.driver
 
-            # Avoid duplicate offers
-            if DriverOffer.objects.filter(
-                shipment=shipment,
-                driver=driver
-            ).exists():
+            if DriverOffer.objects.filter(shipment=shipment, driver=driver).exists():
                 continue
 
             vehicle = MatchingService.get_best_vehicle(driver, shipment)
@@ -127,8 +125,11 @@ class MatchingService:
 
     @staticmethod
     @transaction.atomic
-    def match_next_driver(shipment):
-        shipment = Shipment.objects.select_for_update().get(id=shipment.id)
+    def match_next_driver(shipment_id):
+        shipment = Shipment.objects.select_for_update().get(id=shipment_id)
+
+        if shipment.driver is not None:
+            return None
 
         if shipment.status != "matching":
             return None
@@ -139,6 +140,7 @@ class MatchingService:
         offered_driver_ids = DriverOffer.objects.filter(
             shipment=shipment
         ).values_list("driver_id", flat=True)
+
         drivers = MatchingService.find_nearest_drivers(
             shipment,
             exclude_driver_ids=offered_driver_ids,
@@ -176,7 +178,6 @@ class MatchingService:
         lat = driver_location_obj.location.y if driver_location_obj.location else None
         lng = driver_location_obj.location.x if driver_location_obj.location else None
 
-        # WebSocket notify
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             f"shipment_{shipment.id}_customer",
@@ -194,10 +195,7 @@ class MatchingService:
                             "id": vehicle.id,
                             "type": getattr(vehicle, "vehicle_type", None),
                         },
-                        "location": {
-                            "lat": lat,
-                            "lng": lng
-                        },
+                        "location": {"lat": lat, "lng": lng},
                         "shipment_id": shipment.id,
                         "status": "matched"
                     }
@@ -205,28 +203,18 @@ class MatchingService:
             }
         )
 
-        # Notifications
         notify_user(
             user=shipment.customer,
             title="Driver Found",
             message="Driver is reviewing your request.",
-            data={
-                "type": "driver_found",
-                "shipment_id": shipment.id,
-                "driver_id": driver.id,
-                "offer_id": offer.id
-            }
+            data={"type": "driver_found", "shipment_id": shipment.id}
         )
 
         notify_user(
             user=driver.user,
             title="New Delivery Request",
             message="You have a new shipment request.",
-            data={
-                "type": "new_offer",
-                "shipment_id": shipment.id,
-                "offer_id": offer.id
-            }
+            data={"type": "new_offer", "shipment_id": shipment.id}
         )
 
         return offer
