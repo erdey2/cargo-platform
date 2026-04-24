@@ -30,17 +30,21 @@ class MatchingService:
         )
 
     @staticmethod
-    def find_nearest_drivers(shipment):
+    def find_nearest_drivers(shipment, exclude_driver_ids=None):
         pickup_point = shipment.pickup_location
         valid_vehicle = MatchingService.get_valid_vehicle_subquery(shipment)
 
+        queryset = DriverLocation.objects.filter(
+            driver__is_available=True,
+            driver__verification_status="verified",
+            is_online=True,
+        )
+
+        if exclude_driver_ids:
+            queryset = queryset.exclude(driver_id__in=exclude_driver_ids)
+
         return (
-            DriverLocation.objects
-            .filter(
-                driver__is_available=True,
-                driver__verification_status="verified",
-                is_online=True
-            )
+            queryset
             .annotate(
                 has_valid_vehicle=Exists(valid_vehicle),
                 distance=Distance("location", pickup_point)
@@ -51,6 +55,24 @@ class MatchingService:
             )
             .select_related("driver", "driver__user")
             .order_by("distance", "-driver__rating")[:MatchingService.MAX_CANDIDATES]
+        )
+
+    @staticmethod
+    def mark_no_driver(shipment):
+        shipment.status = "no_driver"
+        shipment.save(update_fields=["status"])
+
+        ShipmentStatusHistory.objects.create(
+            shipment=shipment,
+            status="no_driver",
+            notes="No drivers available"
+        )
+
+        notify_user(
+            user=shipment.customer,
+            title="No Driver Available",
+            message="Try again later.",
+            data={"type": "no_driver", "shipment_id": shipment.id}
         )
 
     @staticmethod
@@ -82,21 +104,7 @@ class MatchingService:
         drivers = MatchingService.find_nearest_drivers(shipment)
 
         if not drivers:
-            shipment.status = "no_driver"
-            shipment.save(update_fields=["status"])
-
-            ShipmentStatusHistory.objects.create(
-                shipment=shipment,
-                status="no_driver",
-                notes="No drivers available"
-            )
-
-            notify_user(
-                user=shipment.customer,
-                title="No Driver Available",
-                message="Try again later.",
-                data={"type": "no_driver", "shipment_id": shipment.id}
-            )
+            MatchingService.mark_no_driver(shipment)
             return None
 
         for d in drivers:
@@ -115,6 +123,39 @@ class MatchingService:
 
             return MatchingService.create_offer(shipment, driver, vehicle, d)
 
+        return None
+
+    @staticmethod
+    @transaction.atomic
+    def match_next_driver(shipment):
+        shipment = Shipment.objects.select_for_update().get(id=shipment.id)
+
+        if shipment.status != "matching":
+            return None
+
+        if DriverOffer.objects.filter(shipment=shipment, status="pending").exists():
+            return None
+
+        offered_driver_ids = DriverOffer.objects.filter(
+            shipment=shipment
+        ).values_list("driver_id", flat=True)
+        drivers = MatchingService.find_nearest_drivers(
+            shipment,
+            exclude_driver_ids=offered_driver_ids,
+        )
+
+        if not drivers:
+            MatchingService.mark_no_driver(shipment)
+            return None
+
+        for d in drivers:
+            vehicle = MatchingService.get_best_vehicle(d.driver, shipment)
+            if not vehicle:
+                continue
+
+            return MatchingService.create_offer(shipment, d.driver, vehicle, d)
+
+        MatchingService.mark_no_driver(shipment)
         return None
 
     @staticmethod
