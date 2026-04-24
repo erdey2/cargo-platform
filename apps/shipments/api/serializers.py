@@ -13,6 +13,7 @@ class ShipmentSimpleSerializer(serializers.ModelSerializer):
         model = Shipment
         fields = [
             "id",
+            "driver",
             "pickup_address",
             "dropoff_address",
             "weight",
