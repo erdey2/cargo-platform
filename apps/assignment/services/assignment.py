@@ -155,7 +155,7 @@ class AssignmentService:
                 data={
                     "type": "completed",
                     "shipment_id": shipment.id,
-                    "final_price": shipment.final_price
+                    "final_price": str(shipment.final_price) if shipment.final_price else None,
                 }
             )
 
@@ -197,7 +197,7 @@ class AssignmentService:
                 "assignment_id": assignment_id,
                 "status": status,
                 "changed_at": timezone.now().isoformat(),
-                "final_price": getattr(shipment, "final_price", None),
+                "final_price": str(shipment.final_price) if shipment.final_price else None,
             },
         }
 
