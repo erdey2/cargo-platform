@@ -1,12 +1,15 @@
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import F
 from rest_framework.exceptions import ValidationError
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+
 from ..models import Assignment
 from apps.shipments.models import ShipmentStatusHistory
 from apps.pricing.services.pricing_service import PriceCalculator
 from apps.notifications.services import notify_user
+
 
 class AssignmentService:
 
@@ -19,6 +22,7 @@ class AssignmentService:
         "cancelled": [],
     }
 
+    # ASSIGN DRIVER
     @staticmethod
     @transaction.atomic
     def assign_driver(shipment, driver, vehicle=None):
@@ -43,7 +47,6 @@ class AssignmentService:
         driver.is_available = False
         driver.save(update_fields=["is_available"])
 
-        # Notify CUSTOMER
         notify_user(
             user=shipment.customer,
             title="Driver Assigned",
@@ -57,6 +60,7 @@ class AssignmentService:
 
         return assignment
 
+    # CHANGE STATUS
     @staticmethod
     @transaction.atomic
     def change_status(assignment, new_status, user):
@@ -75,16 +79,16 @@ class AssignmentService:
         shipment = assignment.shipment
         driver = assignment.driver
         customer = shipment.customer
-
         now = timezone.now()
 
+        # UPDATE CORE STATUS
         assignment.status = new_status
         shipment.status = new_status
 
         update_fields_assignment = ["status", "updated_at"]
         update_fields_shipment = ["status", "updated_at"]
 
-        # Timestamp handling
+        # TIMESTAMPS
         if new_status == "in_transit":
             assignment.picked_up_at = now
             shipment.picked_up_at = now
@@ -105,15 +109,22 @@ class AssignmentService:
                 shipment.delivered_at = now
                 update_fields_shipment.append("delivered_at")
 
-        # Driver becomes available again
-        if new_status in ["completed", "cancelled"]:
+            # DRIVER COMPLETION UPDATE
+            driver.total_trips = F("total_trips") + 1
+            driver.is_available = True
+            driver.save(update_fields=["total_trips", "is_available"])
+            driver.refresh_from_db()
+
+        # CANCEL LOGIC
+        elif new_status == "cancelled":
             driver.is_available = True
             driver.save(update_fields=["is_available"])
 
+        # SAVE
         assignment.save(update_fields=update_fields_assignment)
         shipment.save(update_fields=update_fields_shipment)
 
-        # History logging
+        # HISTORY
         ShipmentStatusHistory.objects.create(
             shipment=shipment,
             status=new_status,
@@ -122,7 +133,6 @@ class AssignmentService:
         )
 
         # NOTIFICATIONS
-
         if new_status == "driver_arriving":
             notify_user(
                 user=customer,
@@ -160,7 +170,6 @@ class AssignmentService:
             )
 
         elif new_status == "cancelled":
-            # Notify both sides
             notify_user(
                 user=customer,
                 title="Shipment Cancelled",
@@ -175,26 +184,24 @@ class AssignmentService:
                 data={"type": "cancelled", "shipment_id": shipment.id}
             )
 
-        # Push shipment status changes to active tracking screens after commit.
+        # REALTIME UPDATE
         transaction.on_commit(
             lambda: AssignmentService.broadcast_status_update(assignment, shipment, new_status)
         )
 
         return assignment
 
+    # WEBSOCKET BROADCAST
     @staticmethod
     def broadcast_status_update(assignment, shipment, status):
-        shipment_id = getattr(shipment, "id", None)
-        assignment_id = getattr(assignment, "id", None)
 
-        if shipment_id is None:
-            return
+        shipment_id = shipment.id
 
         payload = {
             "event": "assignment.status",
             "data": {
                 "shipment_id": shipment_id,
-                "assignment_id": assignment_id,
+                "assignment_id": assignment.id,
                 "status": status,
                 "changed_at": timezone.now().isoformat(),
                 "final_price": str(shipment.final_price) if shipment.final_price else None,
@@ -202,7 +209,7 @@ class AssignmentService:
         }
 
         channel_layer = get_channel_layer()
-        if channel_layer is None:
+        if not channel_layer:
             return
 
         for role in ("customer", "driver", "admin"):
