@@ -405,7 +405,7 @@ class AdminRatingViewSet(viewsets.ReadOnlyModelViewSet):
     send=extend_schema(tags=["Admin"]),
 )
 class AdminNotificationViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Notification.objects.select_related("user").order_by("-created_at")
+    queryset = Notification.objects.select_related("recipient").order_by("-created_at")
     serializer_class = serializers.AdminNotificationSerializer
     permission_classes = [IsAdminUser]
 
