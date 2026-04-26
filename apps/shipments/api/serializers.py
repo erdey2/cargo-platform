@@ -16,6 +16,11 @@ class ShipmentSimpleSerializer(serializers.ModelSerializer):
             "driver",
             "pickup_address",
             "dropoff_address",
+
+            "recipient_name",
+            "recipient_phone",
+            "recipient_alternate_phone",
+
             "weight",
             "volume",
             "estimated_price",
@@ -33,12 +38,20 @@ class ShipmentSerializer(serializers.ModelSerializer):
     customer = serializers.ReadOnlyField(source="customer.id")
     driver = DriverSimpleSerializer(read_only=True)
 
-
+    recipient_name = serializers.CharField(required=True)
+    recipient_phone = serializers.CharField(required=True)
+    recipient_alternate_phone = serializers.CharField(required=False,
+                                                      allow_null=True,
+                                                      allow_blank=True)
     # Write-only inputs
     pickup_lat = serializers.FloatField(write_only=True)
     pickup_lng = serializers.FloatField(write_only=True)
     dropoff_lat = serializers.FloatField(write_only=True)
     dropoff_lng = serializers.FloatField(write_only=True)
+
+    "recipient_name",
+    "recipient_phone",
+    "recipient_alternate_phone",
 
     pickup_latitude = serializers.SerializerMethodField()
     pickup_longitude = serializers.SerializerMethodField()

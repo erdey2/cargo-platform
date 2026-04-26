@@ -1,9 +1,9 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from ..models import Shipment, CargoType, ShipmentStatusHistory
 from .serializers import ShipmentSerializer, CargoTypeSerializer, ShipmentStatusHistorySerializer
-from apps.matching.services.matching import MatchingService
 from apps.pricing.services.pricing_service import PriceCalculator
 from core.permissions import IsAdminOrReadOnly
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiExample
@@ -47,7 +47,10 @@ from apps.matching.tasks import start_driver_matching
                     "weight": 50,
                     "volume": 2.5,
                     "cargo_type": 1,
-                    "description": "Electronics"
+                    "description": "Electronics",
+                    "recipient_name": "Abel Tesfaye",
+                    "recipient_phone": "+251912345678",
+                    "recipient_alternate_phone": "+251987654321"
                 },
                 request_only=True,
             ),
@@ -102,13 +105,19 @@ from apps.matching.tasks import start_driver_matching
 
     destroy=extend_schema(
         summary="Delete shipment",
-        description="Delete a shipment (only if not yet assigned).",
+        description=(
+            "Cancel a shipment by setting status to `cancelled`.\n\n"
+            "- Customers: only allowed when status is `created` or `matching`\n"
+            "- Admins: allowed to cancel from this endpoint"
+        ),
         responses={204: None},
     ),
 )
 class ShipmentViewSet(viewsets.ModelViewSet):
     serializer_class = ShipmentSerializer
     permission_classes = [IsAuthenticated]
+
+    CUSTOMER_CANCELLABLE_STATUSES = {"created", "matching"}
 
     def get_queryset(self):
         user = self.request.user
@@ -138,6 +147,34 @@ class ShipmentViewSet(viewsets.ModelViewSet):
         start_driver_matching.delay(shipment.id)
 
         # MatchingService.match_driver(shipment)
+
+    def destroy(self, request, *args, **kwargs):
+        shipment = self.get_object()
+
+        if shipment.status == "cancelled":
+            return Response(
+                {"detail": "Shipment already cancelled."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not request.user.is_staff and shipment.status not in self.CUSTOMER_CANCELLABLE_STATUSES:
+            return Response(
+                {"detail": "Customers can cancel only when shipment is in created or matching status."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cancelled_by = "admin" if request.user.is_staff else "customer"
+        shipment.status = "cancelled"
+        shipment.save(update_fields=["status", "updated_at"])
+
+        ShipmentStatusHistory.objects.create(
+            shipment=shipment,
+            status="cancelled",
+            changed_by=request.user,
+            notes=f"Cancelled by {cancelled_by}",
+        )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @extend_schema(

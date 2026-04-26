@@ -31,6 +31,11 @@ class Shipment(BaseModel):
 
     cargo_type = models.ForeignKey("CargoType", on_delete=models.SET_NULL, null=True, related_name="shipments")
     description = models.TextField(blank=True)
+
+    recipient_name = models.CharField(max_length=255)
+    recipient_phone = models.CharField(max_length=20)
+    recipient_alternate_phone = models.CharField(max_length=20, blank=True, null=True)
+
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="created", db_index=True)
 
     estimated_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
