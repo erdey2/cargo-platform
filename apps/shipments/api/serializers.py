@@ -79,6 +79,10 @@ class ShipmentSerializer(serializers.ModelSerializer):
             "dropoff_latitude",
             "dropoff_longitude",
 
+            "recipient_name",
+            "recipient_phone",
+            "recipient_alternate_phone",
+
             "weight",
             "volume",
             "cargo_type",
