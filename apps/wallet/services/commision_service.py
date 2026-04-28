@@ -5,10 +5,14 @@ class CommissionService:
 
     @staticmethod
     def calculate(final_price):
-        if final_price is None:
-            raise ValueError("final_price cannot be None")
 
-        final_price = Decimal(final_price)
+        try:
+            final_price = Decimal(str(final_price))
+        except Exception:
+            raise ValueError("Invalid final_price")
+
+        if final_price < 0:
+            raise ValueError("final_price cannot be negative")
 
         commission = (final_price * CommissionService.COMMISSION_RATE).quantize(
             Decimal("0.01"), rounding=ROUND_HALF_UP

@@ -7,17 +7,26 @@ class WalletService:
 
     @staticmethod
     @transaction.atomic
-    def credit_driver(driver, amount, reference, description="Shipment earning", platform_fee=None):
+    def credit_driver(driver, amount, reference, description="Shipment earning", platform_fee=Decimal("0")):
 
-        amount = Decimal(amount)
+        try:
+            amount = Decimal(str(amount))
+            platform_fee = Decimal(str(platform_fee or 0))
+        except Exception:
+            raise ValueError("Invalid decimal values")
 
-        # Idempotency check: Prevent double crediting for the same reference
+        if amount <= 0:
+            raise ValueError("Amount must be positive")
+
+        # Idempotency (better still: enforce DB unique constraint)
         if WalletTransaction.objects.filter(reference=reference, type="credit").exists():
             return
 
         wallet, _ = DriverWallet.objects.select_for_update().get_or_create(driver=driver)
 
-        wallet.balance = wallet.balance + amount
+        driver_earning = amount - platform_fee
+
+        wallet.balance += driver_earning
         wallet.save(update_fields=["balance"])
 
         WalletTransaction.objects.create(
@@ -27,5 +36,5 @@ class WalletService:
             reference=reference,
             description=description,
             platform_fee=platform_fee,
-            driver_earning=amount
+            driver_earning=driver_earning
         )
