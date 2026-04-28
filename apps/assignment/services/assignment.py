@@ -10,6 +10,9 @@ from apps.shipments.models import ShipmentStatusHistory
 from apps.pricing.services.pricing_service import PriceCalculator
 from apps.notifications.services import notify_user
 
+from apps.wallet.models import DriverWallet, WalletTransaction
+from apps.wallet.services.commision_service import CommissionService
+
 
 class AssignmentService:
 
@@ -106,16 +109,50 @@ class AssignmentService:
             update_fields_shipment.append("delivered_at")
 
         elif new_status == "completed":
+
             shipment.final_price = PriceCalculator.calculate_final_price(shipment)
+
+            # 🛑 Prevent double payment
+            if WalletTransaction.objects.filter(
+                    reference=f"shipment_{shipment.id}",
+                    type="credit"
+            ).exists():
+                return assignment
+
+            # Commission
+            commission, earning = CommissionService.calculate(shipment.final_price)
+
+            # Wallet
+            wallet, _ = DriverWallet.objects.get_or_create(driver=driver)
+
+            # Safe balance update
+            wallet.balance = F("balance") + earning
+            wallet.save(update_fields=["balance"])
+            wallet.refresh_from_db()
+
+            # Ledger (ONLY earning)
+            WalletTransaction.objects.create(
+                wallet=wallet,
+                amount=earning,
+                type="credit",
+                reference=f"shipment_{shipment.id}",
+                description=f"Shipment {shipment.id} earning"
+            )
+
             update_fields_shipment.append("final_price")
 
             if not shipment.delivered_at:
                 shipment.delivered_at = now
                 update_fields_shipment.append("delivered_at")
 
-            # DRIVER COMPLETION UPDATE
+            # Driver update
+            from django.db.models import F
+
             driver.total_trips = F("total_trips") + 1
-            driver.is_available = True
+            driver.is_available = not driver.shipments.filter(
+                status__in=["assigned", "in_transit"]
+            ).exists()
+
             driver.save(update_fields=["total_trips", "is_available"])
             driver.refresh_from_db()
 
