@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from apps.shipments.models import Shipment
 from apps.shipments.api.serializers import ShipmentSerializer
+from apps.assignment.models import Assignment
 
 
 @extend_schema(tags=["Driver - Shipments"])
@@ -14,7 +15,7 @@ class DriverShipmentViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return Shipment.objects.filter(
-            driver__user=self.request.user
+            assignment__driver__user=self.request.user
         ).order_by("-created_at")
 
     @extend_schema(
@@ -66,6 +67,6 @@ Returns shipments that are currently active:
     )
     def completed(self, request):
         qs = self.get_queryset().filter(
-            status="delivered"
+            status="completed"
         )
         return Response(self.get_serializer(qs, many=True).data)
