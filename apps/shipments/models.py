@@ -45,6 +45,7 @@ class Shipment(BaseModel):
     assigned_at = models.DateTimeField(null=True, blank=True)
     picked_up_at = models.DateTimeField(null=True, blank=True)
     delivered_at = models.DateTimeField(null=True, blank=True)
+    is_paid = models.BooleanField(default=False)
 
     class Meta:
         indexes = [

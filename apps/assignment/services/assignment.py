@@ -110,44 +110,35 @@ class AssignmentService:
 
         elif new_status == "completed":
 
-            shipment.final_price = PriceCalculator.calculate_final_price(shipment)
-
-            # 🛑 Prevent double payment
-            if WalletTransaction.objects.filter(
-                    reference=f"shipment_{shipment.id}",
-                    type="credit"
-            ).exists():
+            # Prevent double execution
+            if shipment.is_paid:
                 return assignment
 
-            # Commission
-            commission, earning = CommissionService.calculate(shipment.final_price)
-
-            # Wallet
-            wallet, _ = DriverWallet.objects.get_or_create(driver=driver)
-
-            # Safe balance update
-            wallet.balance = F("balance") + earning
-            wallet.save(update_fields=["balance"])
-            wallet.refresh_from_db()
-
-            # Ledger (ONLY earning)
-            WalletTransaction.objects.create(
-                wallet=wallet,
-                amount=earning,
-                type="credit",
-                reference=f"shipment_{shipment.id}",
-                description=f"Shipment {shipment.id} earning"
-            )
-
+            final_price = PriceCalculator.calculate_final_price(shipment)
+            shipment.final_price = final_price
             update_fields_shipment.append("final_price")
 
             if not shipment.delivered_at:
                 shipment.delivered_at = now
                 update_fields_shipment.append("delivered_at")
 
-            # Driver update
-            from django.db.models import F
+            # Commission
+            commission, earning = CommissionService.calculate(final_price)
 
+            # Credit wallet
+            WalletService.credit_driver(
+                driver=driver,
+                amount=earning,
+                reference=f"shipment_{shipment.id}",
+                description=f"Shipment {shipment.id} earning",
+                platform_fee=commission
+            )
+
+            # Mark paid
+            shipment.is_paid = True
+            update_fields_shipment.append("is_paid")
+
+            # Update driver stats safely
             driver.total_trips = F("total_trips") + 1
             driver.is_available = not driver.shipments.filter(
                 status__in=["assigned", "in_transit"]

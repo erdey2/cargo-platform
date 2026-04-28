@@ -108,6 +108,7 @@ LOCAL_APPS = [
     "apps.tracking",
     "apps.users",
     "apps.vehicles",
+    "apps.wallet",
     "apps.drivers.apps.DriversConfig",
 ]
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
