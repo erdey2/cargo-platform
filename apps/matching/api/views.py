@@ -157,11 +157,16 @@ class DriverResponseView(APIView):
 
                     # Safe assignment creation
                     try:
-                        Assignment.objects.create(
+                        assignment = Assignment.objects.create(
                             shipment=shipment,
                             driver=offer.driver,
-                            vehicle=vehicle
+                            vehicle=vehicle,
+                            status="assigned"
                         )
+                        shipment.driver = offer.driver
+                        shipment.status = "assigned"
+                        shipment.assigned_at = timezone.now()
+                        shipment.save(update_fields=["driver", "status", "assigned_at"])
                     except IntegrityError:
                         return Response({"error": "Already assigned"}, status=400)
 

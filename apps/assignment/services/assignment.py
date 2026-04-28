@@ -65,6 +65,10 @@ class AssignmentService:
     @transaction.atomic
     def change_status(assignment, new_status, user):
 
+        if not assignment.shipment.driver:
+            assignment.shipment.driver = assignment.driver
+            assignment.shipment.save(update_fields=["driver"])
+
         current_status = assignment.status
         allowed_next = AssignmentService.VALID_TRANSITIONS.get(current_status, [])
 

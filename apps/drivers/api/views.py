@@ -5,7 +5,6 @@ from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from apps.shipments.models import Shipment
 from apps.shipments.api.serializers import ShipmentSerializer
-from apps.assignment.models import Assignment
 
 
 @extend_schema(tags=["Driver - Shipments"])
