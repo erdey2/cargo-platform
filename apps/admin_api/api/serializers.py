@@ -71,7 +71,6 @@ class AdminDriverSerializer(serializers.ModelSerializer):
             "driver_license",
             "license_expiry",
             "verification_status",
-            "rating",
             "total_trips",
             "is_available",
             "is_active",
