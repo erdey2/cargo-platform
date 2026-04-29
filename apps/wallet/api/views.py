@@ -62,6 +62,7 @@ class RequestPayoutView(APIView):
 
     @transaction.atomic
     def post(self, request):
+
         driver = get_driver(request.user)
 
         idempotency_key = request.headers.get("Idempotency-Key") or str(uuid.uuid4())
@@ -79,31 +80,34 @@ class RequestPayoutView(APIView):
 
         try:
             amount = Decimal(str(request.data.get("amount")))
-        except (InvalidOperation, TypeError):
-            raise ValidationError("Invalid amount format")
+        except:
+            raise ValidationError("Invalid amount")
 
         if amount <= 0:
             raise ValidationError("Amount must be greater than zero")
 
         if amount < MIN_PAYOUT_AMOUNT:
-            raise ValidationError(f"Minimum payout is {MIN_PAYOUT_AMOUNT}")
+            raise ValidationError("Minimum payout is 100")
 
-        wallet, _ = DriverWallet.objects.select_for_update().get_or_create(driver=driver)
+        wallet = DriverWallet.objects.select_for_update().get(driver=driver)
 
         if wallet.balance < amount:
             raise ValidationError("Insufficient balance")
 
         if DriverPayout.objects.filter(
             driver=driver,
-            status__in=["pending", "processing"]
+            status__in=[
+                DriverPayout.Status.PENDING,
+                DriverPayout.Status.PROCESSING
+            ]
         ).exists():
             raise ValidationError("Active payout already exists")
 
         payout = DriverPayout.objects.create(
             driver=driver,
             amount=amount,
-            status=DriverPayout.Status.PENDING,
-            idempotency_key=idempotency_key
+            idempotency_key=idempotency_key,
+            status=DriverPayout.Status.PENDING
         )
 
         return Response({
@@ -133,14 +137,14 @@ class ApprovePayoutView(APIView):
         payout.status = DriverPayout.Status.PROCESSING
         payout.save(update_fields=["status"])
 
-        # Deduct
         wallet.balance -= payout.amount
         wallet.save(update_fields=["balance"])
 
         WalletTransaction.objects.create(
             wallet=wallet,
             amount=payout.amount,
-            type="debit",
+            gross_amount=payout.amount,
+            type=WalletTransaction.Type.DEBIT,
             reference=f"payout_{payout.id}",
             description="Withdrawal"
         )
