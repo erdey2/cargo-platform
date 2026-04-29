@@ -18,8 +18,8 @@ class CommissionService:
             Decimal("0.01"), rounding=ROUND_HALF_UP
         )
 
-        driver_earning = (final_price - commission).quantize(
+        earning = (final_price - commission).quantize(
             Decimal("0.01"), rounding=ROUND_HALF_UP
         )
 
-        return commission, driver_earning
+        return commission, earning

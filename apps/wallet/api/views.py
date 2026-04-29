@@ -64,28 +64,21 @@ class RequestPayoutView(APIView):
     def post(self, request):
         driver = get_driver(request.user)
 
-        # Idempotency Key
         idempotency_key = request.headers.get("Idempotency-Key") or str(uuid.uuid4())
 
-        payout, created = DriverPayout.objects.get_or_create(
-            idempotency_key=idempotency_key,
-            defaults={
-                "driver": driver,
-                "amount": Decimal("0"),
-                "status": DriverPayout.Status.PENDING
-            }
-        )
+        existing = DriverPayout.objects.filter(idempotency_key=idempotency_key).first()
+        if existing:
+            if existing.driver != driver:
+                raise ValidationError("Idempotency key already used by another driver")
 
-        if not created:
             return Response({
                 "message": "Duplicate request",
-                "payout_id": payout.id,
-                "status": payout.status
+                "payout_id": existing.id,
+                "status": existing.status
             })
 
-        # Amount validation
         try:
-            amount = Decimal(str(request.data.get("amount", "")))
+            amount = Decimal(str(request.data.get("amount")))
         except (InvalidOperation, TypeError):
             raise ValidationError("Invalid amount format")
 
@@ -95,22 +88,29 @@ class RequestPayoutView(APIView):
         if amount < MIN_PAYOUT_AMOUNT:
             raise ValidationError(f"Minimum payout is {MIN_PAYOUT_AMOUNT}")
 
-        wallet = DriverWallet.objects.select_for_update().get(driver=driver)
+        wallet, _ = DriverWallet.objects.select_for_update().get_or_create(driver=driver)
 
         if wallet.balance < amount:
             raise ValidationError("Insufficient balance")
 
-        # update payout safely
-        payout.amount = amount
-        payout.status = DriverPayout.Status.PENDING
-        payout.save(update_fields=["amount", "status"])
+        if DriverPayout.objects.filter(
+            driver=driver,
+            status__in=["pending", "processing"]
+        ).exists():
+            raise ValidationError("Active payout already exists")
+
+        payout = DriverPayout.objects.create(
+            driver=driver,
+            amount=amount,
+            status=DriverPayout.Status.PENDING,
+            idempotency_key=idempotency_key
+        )
 
         return Response({
             "message": "Payout requested",
             "payout_id": payout.id
         })
 
-# Admin Approve
 class ApprovePayoutView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -123,7 +123,7 @@ class ApprovePayoutView(APIView):
         )
 
         if payout.status != DriverPayout.Status.PENDING:
-            raise ValidationError("Payout already processed")
+            raise ValidationError("Invalid state transition")
 
         wallet = DriverWallet.objects.select_for_update().get(driver=payout.driver)
 
@@ -133,7 +133,7 @@ class ApprovePayoutView(APIView):
         payout.status = DriverPayout.Status.PROCESSING
         payout.save(update_fields=["status"])
 
-        # Deduct balance
+        # Deduct
         wallet.balance -= payout.amount
         wallet.save(update_fields=["balance"])
 
@@ -151,7 +151,6 @@ class ApprovePayoutView(APIView):
 
         return Response({"message": "Payout approved"})
 
-# Admin Reject
 class RejectPayoutView(APIView):
     permission_classes = [IsAdminUser]
 
