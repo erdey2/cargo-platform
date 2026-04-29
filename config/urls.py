@@ -66,6 +66,7 @@ urlpatterns = [
     path("api/", include("apps.tracking.api.urls")),
     path("api/", include("apps.assignment.api.urls")),
     path("api/", include("apps.drivers.api.urls")),
+    path("api/", include("apps.rating.api.urls")),
     path("api/matching/", include("apps.matching.api.urls")),
 
     path("api/", include("apps.wallet.api.urls")),
