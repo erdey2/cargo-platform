@@ -23,9 +23,6 @@ class DriverProfile(BaseModel):
         choices=VERIFICATION_STATUS,
         default="pending"
     )
-
-    rating = models.FloatField(default=5.0)
-
     total_trips = models.IntegerField(default=0)
 
     is_available = models.BooleanField(default=True)

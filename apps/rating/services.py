@@ -1,13 +1,17 @@
-from django.db.models import Avg
-
-from apps.drivers.models import DriverProfile
-from apps.rating.models import Rating
-
+from decimal import Decimal
 
 class RatingService:
-    @staticmethod
-    def refresh_driver_rating(driver: DriverProfile):
-        average = Rating.objects.filter(driver=driver).aggregate(avg=Avg("score"))["avg"]
-        driver.rating = float(average) if average is not None else 5.0
-        driver.save(update_fields=["rating"])
 
+    @staticmethod
+    def update_driver_rating(driver, new_score):
+        total = driver.total_ratings
+        current_avg = driver.average_rating or Decimal("0")
+
+        new_total = total + 1
+
+        new_avg = ((current_avg * total) + Decimal(new_score)) / new_total
+
+        driver.average_rating = round(new_avg, 2)
+        driver.total_ratings = new_total
+
+        driver.save(update_fields=["average_rating", "total_ratings"])

@@ -1,8 +1,8 @@
 from django.db import models
+from django.db.models import UniqueConstraint
 from apps.users.models import User
 from core.models import BaseModel
 from apps.shipments.models import Shipment
-
 
 class Rating(BaseModel):
 
@@ -14,11 +14,13 @@ class Rating(BaseModel):
         related_name="driver_ratings"
     )
 
-    customer = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE
-    )
+    customer = models.ForeignKey(User, on_delete=models.CASCADE)
 
-    score = models.IntegerField()
+    score = models.PositiveSmallIntegerField()
 
     comment = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [
+            UniqueConstraint(fields=["shipment"], name="unique_shipment_rating")
+        ]

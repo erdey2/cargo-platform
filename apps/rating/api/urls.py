@@ -1,7 +1,8 @@
 from django.urls import path
-from apps.rating.api.views import CreateRatingView
+from .views import CreateRatingView, RatingListView, DriverRatingView
 
 urlpatterns = [
-	path("ratings/", CreateRatingView.as_view(), name="create-rating"),
+    path("", RatingListView.as_view()),
+    path("create/", CreateRatingView.as_view()),
+    path("driver/", DriverRatingView.as_view()),
 ]
-
