@@ -23,6 +23,10 @@ class DriverProfile(BaseModel):
         choices=VERIFICATION_STATUS,
         default="pending"
     )
+    
+    average_rating = models.DecimalField(max_digits=3, decimal_places=2, default=5.00)
+    total_ratings = models.IntegerField(default=0)
+
     total_trips = models.IntegerField(default=0)
 
     is_available = models.BooleanField(default=True)
