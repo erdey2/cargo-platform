@@ -22,13 +22,9 @@ class WalletTransaction(BaseModel):
         CREDIT = "credit", "Credit"
         DEBIT = "debit", "Debit"
 
-    wallet = models.ForeignKey(
-        DriverWallet,
-        on_delete=models.CASCADE,
-        related_name="transactions"
-    )
+    wallet = models.ForeignKey(DriverWallet, on_delete=models.CASCADE, related_name="transactions")
 
-    # NET amount (what affects wallet)
+    # NET amount
     amount = models.DecimalField(max_digits=12, decimal_places=2)
 
     type = models.CharField(max_length=10, choices=Type.choices)

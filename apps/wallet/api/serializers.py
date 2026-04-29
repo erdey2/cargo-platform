@@ -9,16 +9,18 @@ class WalletTransactionSerializer(serializers.ModelSerializer):
         model = WalletTransaction
         fields = [
             "id",
+            "wallet"
             "amount",
+            "gross_amount",
             "type",
             "reference",
             "description",
             "platform_fee",
-            "driver_earning",
-            "created_at",
         ]
         read_only_fields = [
             "id",
             "type",
-            "created_at",
+            "wallet",
+            "amount",
+            "gross_amount"
         ]
