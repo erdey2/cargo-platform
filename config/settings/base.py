@@ -108,7 +108,6 @@ LOCAL_APPS = [
     "apps.tracking",
     "apps.users",
     "apps.vehicles",
-    "apps.rating",
     "apps.wallet",
     "apps.drivers.apps.DriversConfig",
 ]

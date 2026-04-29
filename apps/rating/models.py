@@ -6,10 +6,7 @@ from apps.shipments.models import Shipment
 
 class Rating(BaseModel):
 
-    shipment = models.OneToOneField(
-        Shipment,
-        on_delete=models.CASCADE
-    )
+    shipment = models.OneToOneField(Shipment, on_delete=models.CASCADE)
 
     driver = models.ForeignKey(
         "drivers.DriverProfile",

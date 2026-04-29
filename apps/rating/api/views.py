@@ -1,13 +1,10 @@
 from django.db import IntegrityError, transaction
-
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
 from drf_spectacular.utils import extend_schema, OpenApiResponse
-
 from apps.rating.api.serializers import RatingCreateSerializer, RatingSerializer
 
 
