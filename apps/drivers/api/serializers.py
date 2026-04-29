@@ -11,7 +11,8 @@ class DriverSimpleSerializer(serializers.ModelSerializer):
             "id",
             "email",
             "full_name",
-            "rating",
+            "average_rating",
+            "total_ratings",
             "total_trips",
             "is_available",
         ]
