@@ -2,7 +2,6 @@ from rest_framework import serializers
 from apps.rating.models import Rating
 from apps.shipments.models import Shipment
 
-
 class RatingCreateSerializer(serializers.Serializer):
     shipment_id = serializers.IntegerField()
     score = serializers.IntegerField(min_value=1, max_value=5)
@@ -45,3 +44,23 @@ class RatingCreateSerializer(serializers.Serializer):
             score=validated_data["score"],
             comment=validated_data.get("comment", ""),
         )
+
+class RatingSerializer(serializers.ModelSerializer):
+	shipment_id = serializers.IntegerField(read_only=True)
+	driver_id = serializers.IntegerField(read_only=True)
+	customer_id = serializers.IntegerField(read_only=True)
+
+	class Meta:
+		model = Rating
+		fields = [
+			"id",
+			"shipment_id",
+			"driver_id",
+			"customer_id",
+			"score",
+			"comment",
+			"created_at",
+		]
+
+
+
