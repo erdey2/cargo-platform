@@ -32,7 +32,8 @@ class WalletTransaction(BaseModel):
 
     type = models.CharField(max_length=10, choices=Type.choices)
 
-    reference = models.CharField(max_length=100)
+    reference = models.CharField(max_length=100, null=True, blank=True)
+    # reference = models.CharField(max_length=100)
 
     description = models.TextField(blank=True)
 
@@ -89,7 +90,8 @@ class DriverPayout(BaseModel):
         default=Status.PENDING
     )
 
-    idempotency_key = models.CharField(max_length=100, unique=True)
+    idempotency_key = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    # idempotency_key = models.CharField(max_length=100, unique=True)
 
     requested_at = models.DateTimeField(auto_now_add=True)
     processed_at = models.DateTimeField(null=True, blank=True)
