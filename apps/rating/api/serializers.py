@@ -1,8 +1,8 @@
 from rest_framework import serializers
 from apps.rating.models import Rating
 from apps.shipments.models import Shipment
-from shipments.api.serializers import ShipmentSimpleSerializer
-from drivers.api.serializers import DriverSimpleSerializer
+from apps.shipments.api.serializers import ShipmentSimpleSerializer
+from apps.drivers.api.serializers import DriverSimpleSerializer
 
 class RatingCreateSerializer(serializers.Serializer):
     shipment_id = serializers.IntegerField()
