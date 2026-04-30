@@ -71,11 +71,9 @@ class RatingListView(ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-
         queryset = Rating.objects.select_related(
             "shipment",
-            "driver",
+            "driver__user",
             "customer"
         ).order_by("-created_at")
 
@@ -83,13 +81,12 @@ class RatingListView(ListAPIView):
         shipment_id = self.request.query_params.get("shipment_id")
 
         if driver_id:
-            queryset = queryset.filter(driver_id=driver_id)
+            return queryset.filter(driver_id=driver_id)
 
         if shipment_id:
-            queryset = queryset.filter(shipment_id=shipment_id)
+            return queryset.filter(shipment_id=shipment_id)
 
-        # limit to user's data
-        return queryset.filter(customer=user)
+        return queryset
 
 @extend_schema(
     tags=["Ratings"],
