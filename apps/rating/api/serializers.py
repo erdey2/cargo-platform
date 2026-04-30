@@ -55,13 +55,14 @@ class RatingSerializer(serializers.ModelSerializer):
         model = Rating
         fields = [
 			"id",
-			"shipment_id",
-			"driver_id",
+			"shipment",
+			"driver",
 			"customer_id",
 			"score",
 			"comment",
 			"created_at",
 		]
+        read_only_fields = ["shipment", "driver", "customer_id", "created_at"]
 
 
 
