@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from apps.rating.models import Rating
 from apps.shipments.models import Shipment
+from shipments.api.serializers import ShipmentSimpleSerializer
+from drivers.api.serializers import DriverSimpleSerializer
 
 class RatingCreateSerializer(serializers.Serializer):
     shipment_id = serializers.IntegerField()
@@ -46,13 +48,12 @@ class RatingCreateSerializer(serializers.Serializer):
         )
 
 class RatingSerializer(serializers.ModelSerializer):
-	shipment_id = serializers.IntegerField(read_only=True)
-	driver_id = serializers.IntegerField(read_only=True)
-	customer_id = serializers.IntegerField(read_only=True)
+    shipment = ShipmentSimpleSerializer(read_only=True)
+    driver = DriverSimpleSerializer(read_only=True)
 
-	class Meta:
-		model = Rating
-		fields = [
+    class Meta:
+        model = Rating
+        fields = [
 			"id",
 			"shipment_id",
 			"driver_id",
