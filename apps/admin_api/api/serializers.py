@@ -3,7 +3,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
-from apps.users.models import Profile
 from apps.drivers.models import DriverProfile
 from apps.vehicles.models import Vehicle
 from apps.shipments.models import Shipment, CargoType
@@ -129,11 +128,13 @@ class AdminShipmentSerializer(serializers.ModelSerializer):
             "status",
             "estimated_price",
             "final_price",
+            "proof_of_delivery",
             "assigned_at",
             "picked_up_at",
             "delivered_at",
             "created_at",
         ]
+        read_only_fields = ["proof_of_delivery"]
 
 
 class AdminAssignDriverSerializer(serializers.Serializer):

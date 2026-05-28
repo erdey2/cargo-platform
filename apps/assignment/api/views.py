@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from ..models import Assignment
 from .serializers import AssignmentSerializer, AssignmentStatusUpdateSerializer
 from apps.assignment.services.assignment import AssignmentService
@@ -49,6 +50,7 @@ class AssignmentViewSet(viewsets.ReadOnlyModelViewSet):
 class AssignmentStatusUpdateView(APIView):
 
     permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
     @extend_schema(
         summary="Update assignment status",
@@ -63,6 +65,7 @@ class AssignmentStatusUpdateView(APIView):
             "- cancelled\n\n"
             "Rules:\n"
             "- Only assigned driver or admin can update\n"
+            "- If status is `delivered`, a `proof_of_delivery` image is required\n"
             "- Business logic is handled in AssignmentService"
         ),
         parameters=[
@@ -117,11 +120,13 @@ class AssignmentStatusUpdateView(APIView):
         serializer.is_valid(raise_exception=True)
 
         new_status = serializer.validated_data["status"]
+        proof_of_delivery = serializer.validated_data.get("proof_of_delivery")
 
         assignment = AssignmentService.change_status(
             assignment,
             new_status,
-            request.user
+            request.user,
+            proof_of_delivery=proof_of_delivery,
         )
 
         return Response(AssignmentSerializer(assignment).data)

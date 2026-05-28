@@ -24,6 +24,7 @@ class ShipmentSimpleSerializer(serializers.ModelSerializer):
             "weight",
             "volume",
             "estimated_price",
+            "proof_of_delivery",
         ]
         read_only_fields = [
             "id",
@@ -32,6 +33,7 @@ class ShipmentSimpleSerializer(serializers.ModelSerializer):
             "weight",
             "volume",
             "estimated_price",
+            "proof_of_delivery",
         ]
 
 class ShipmentSerializer(serializers.ModelSerializer):
@@ -48,10 +50,6 @@ class ShipmentSerializer(serializers.ModelSerializer):
     pickup_lng = serializers.FloatField(write_only=True)
     dropoff_lat = serializers.FloatField(write_only=True)
     dropoff_lng = serializers.FloatField(write_only=True)
-
-    "recipient_name",
-    "recipient_phone",
-    "recipient_alternate_phone",
 
     pickup_latitude = serializers.SerializerMethodField()
     pickup_longitude = serializers.SerializerMethodField()
@@ -90,6 +88,7 @@ class ShipmentSerializer(serializers.ModelSerializer):
             "status",
             "estimated_price",
             "final_price",
+            "proof_of_delivery",
             "assigned_at",
             "picked_up_at",
             "delivered_at",
@@ -103,6 +102,7 @@ class ShipmentSerializer(serializers.ModelSerializer):
             "delivered_at",
             "estimated_price",
             "final_price",
+            "proof_of_delivery",
         ]
 
     def get_pickup_latitude(self, obj):

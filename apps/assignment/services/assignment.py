@@ -66,7 +66,7 @@ class AssignmentService:
     # CHANGE STATUS
     @staticmethod
     @transaction.atomic
-    def change_status(assignment, new_status, user):
+    def change_status(assignment, new_status, user, proof_of_delivery=None):
         assignment = Assignment.objects.select_for_update().get(pk=assignment.pk)
         shipment = assignment.shipment
 
@@ -103,10 +103,14 @@ class AssignmentService:
             update_fields_shipment.append("picked_up_at")
 
         elif new_status == "delivered":
+            if not proof_of_delivery:
+                raise ValidationError("Proof of delivery is required when marking shipment as delivered")
+
             assignment.delivered_at = now
             shipment.delivered_at = now
+            shipment.proof_of_delivery = proof_of_delivery
             update_fields_assignment.append("delivered_at")
-            update_fields_shipment.append("delivered_at")
+            update_fields_shipment.extend(["delivered_at", "proof_of_delivery"])
 
         elif new_status == "completed":
 
@@ -125,12 +129,12 @@ class AssignmentService:
             commission, _ = CommissionService.calculate(final_price)
 
             WalletService.credit_driver(
-                driver=driver,
-                gross_amount=final_price,
-                reference=f"shipment_{shipment.id}",
+                driver,
+                final_price,
+                f"shipment_{shipment.id}",
                 description=f"Shipment {shipment.id} earning",
-                platform_fee=commission
-            )
+                platform_fee=commission,
+            )  # type: ignore[call-arg]
 
             shipment.is_paid = True
             update_fields_shipment.append("is_paid")
@@ -217,7 +221,7 @@ class AssignmentService:
         transaction.on_commit(
             lambda: AssignmentService.broadcast_status_update(
                 assignment, shipment, new_status
-            )
+            )  # type: ignore[arg-type]
         )
 
         return assignment
@@ -225,6 +229,9 @@ class AssignmentService:
     # WEBSOCKET
     @staticmethod
     def broadcast_status_update(assignment, shipment, status):
+
+        proof = getattr(shipment, "proof_of_delivery", None)
+        proof_url = getattr(proof, "url", None) if proof else None
 
         payload = {
             "event": "assignment.status",
@@ -234,6 +241,7 @@ class AssignmentService:
                 "status": status,
                 "changed_at": shipment.updated_at.isoformat(),
                 "final_price": str(shipment.final_price) if shipment.final_price else None,
+                "proof_of_delivery": proof_url,
             },
         }
 

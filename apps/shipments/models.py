@@ -42,6 +42,12 @@ class Shipment(BaseModel):
     final_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     road_distance_km = models.FloatField(null=True, blank=True)
 
+    proof_of_delivery = models.FileField(
+        upload_to="shipment_proofs/",
+        null=True,
+        blank=True,
+    )
+
     assigned_at = models.DateTimeField(null=True, blank=True)
     picked_up_at = models.DateTimeField(null=True, blank=True)
     delivered_at = models.DateTimeField(null=True, blank=True)

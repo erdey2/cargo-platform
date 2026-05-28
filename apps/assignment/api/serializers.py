@@ -23,7 +23,22 @@ class AssignmentSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-class AssignmentStatusUpdateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Assignment
-        fields = ["status"]
+class AssignmentStatusUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=[choice[0] for choice in Assignment.STATUS_CHOICES])
+    proof_of_delivery = serializers.FileField(required=False, allow_null=True)
+
+    def validate(self, attrs):
+        status = attrs.get("status")
+        proof = attrs.get("proof_of_delivery")
+
+        if status == "delivered" and not proof:
+            raise serializers.ValidationError(
+                {"proof_of_delivery": "Proof of delivery is required when marking a shipment as delivered."}
+            )
+
+        if status != "delivered" and proof:
+            raise serializers.ValidationError(
+                {"proof_of_delivery": "Proof of delivery can only be uploaded when the status is delivered."}
+            )
+
+        return attrs
