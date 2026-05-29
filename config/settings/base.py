@@ -210,13 +210,26 @@ CLOUDINARY_STORAGE = {
     'CLOUD_NAME': env('CLOUDINARY_CLOUD_NAME', default=None),
     'API_KEY': env('CLOUDINARY_API_KEY', default=None),
     'API_SECRET': env('CLOUDINARY_API_SECRET', default=None),
+    'SECURE': True,
     'UPLOAD_OPTIONS': {
-        'folder': 'car-images/',
-        'resource_type': 'image',
-        'allowed_formats': ['jpg', 'jpeg', 'png']
+        'resource_type': 'auto',
+        'quality': 'auto',
+        'fetch_format': 'auto',
+        'max_file_size': 52428800,  # 50MB
     }
 }
 
+# Django 5.x STORAGES Configuration
+STORAGES = {
+    'default': {
+        'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
+
+# Fallback for older code that uses DEFAULT_FILE_STORAGE
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # STATIC
@@ -227,7 +240,6 @@ STATICFILES_FINDERS = [
     "django.contrib.staticfiles.finders.FileSystemFinder",
     "django.contrib.staticfiles.finders.AppDirectoriesFinder",
 ]
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # MEDIA
 MEDIA_ROOT = str(APPS_DIR / "media")
