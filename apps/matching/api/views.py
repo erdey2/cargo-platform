@@ -141,7 +141,7 @@ class DriverResponseView(APIView):
                     offer.status = "expired"
                     offer.save(update_fields=["status"])
 
-                    MatchingService.match_next_driver(shipment)
+                    MatchingService.match_next_driver(shipment.id)
                     return Response({"error": "Offer expired"}, status=400)
 
                 # Prevent accepting already assigned shipment
