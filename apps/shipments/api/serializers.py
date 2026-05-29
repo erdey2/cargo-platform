@@ -37,31 +37,50 @@ class ShipmentSimpleSerializer(serializers.ModelSerializer):
         ]
 
 class ShipmentSerializer(serializers.ModelSerializer):
+
     customer = serializers.ReadOnlyField(source="customer.id")
+
     driver = DriverSimpleSerializer(read_only=True)
 
+    # FIXED
+    proof_of_delivery = serializers.SerializerMethodField()
+
     recipient_name = serializers.CharField(required=True)
+
     recipient_phone = serializers.CharField(required=True)
-    recipient_alternate_phone = serializers.CharField(required=False,
-                                                      allow_null=True,
-                                                      allow_blank=True)
+
+    recipient_alternate_phone = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=True
+    )
+
     # Write-only inputs
     pickup_lat = serializers.FloatField(write_only=True)
+
     pickup_lng = serializers.FloatField(write_only=True)
+
     dropoff_lat = serializers.FloatField(write_only=True)
+
     dropoff_lng = serializers.FloatField(write_only=True)
 
     pickup_latitude = serializers.SerializerMethodField()
+
     pickup_longitude = serializers.SerializerMethodField()
+
     dropoff_latitude = serializers.SerializerMethodField()
+
     dropoff_longitude = serializers.SerializerMethodField()
 
     class Meta:
+
         model = Shipment
+
         fields = [
             "id",
             "customer",
             "driver",
+
             "pickup_address",
             "dropoff_address",
 
@@ -85,10 +104,13 @@ class ShipmentSerializer(serializers.ModelSerializer):
             "volume",
             "cargo_type",
             "description",
+
             "status",
             "estimated_price",
             "final_price",
+
             "proof_of_delivery",
+
             "assigned_at",
             "picked_up_at",
             "delivered_at",
@@ -105,6 +127,22 @@ class ShipmentSerializer(serializers.ModelSerializer):
             "proof_of_delivery",
         ]
 
+    # FIXED
+    def get_proof_of_delivery(self, obj):
+
+        request = self.context.get("request")
+
+        if obj.proof_of_delivery:
+
+            if request:
+                return request.build_absolute_uri(
+                    obj.proof_of_delivery.url
+                )
+
+            return obj.proof_of_delivery.url
+
+        return None
+
     def get_pickup_latitude(self, obj):
         return obj.pickup_location.y if obj.pickup_location else None
 
@@ -118,25 +156,34 @@ class ShipmentSerializer(serializers.ModelSerializer):
         return obj.dropoff_location.x if obj.dropoff_location else None
 
     def validate(self, data):
+
         if data["weight"] <= 0:
-            raise serializers.ValidationError("Weight must be positive")
+            raise serializers.ValidationError(
+                "Weight must be positive"
+            )
 
         if data["volume"] <= 0:
-            raise serializers.ValidationError("Volume must be positive")
+            raise serializers.ValidationError(
+                "Volume must be positive"
+            )
 
         lat = data.get("pickup_lat")
         lng = data.get("pickup_lng")
 
         if not (-90 <= lat <= 90 and -180 <= lng <= 180):
-            raise serializers.ValidationError("Invalid pickup coordinates")
+            raise serializers.ValidationError(
+                "Invalid pickup coordinates"
+            )
 
         return data
 
     def create(self, validated_data):
+
         pickup = Point(
             validated_data.pop("pickup_lng"),
             validated_data.pop("pickup_lat"),
         )
+
         dropoff = Point(
             validated_data.pop("dropoff_lng"),
             validated_data.pop("dropoff_lat"),
