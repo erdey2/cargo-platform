@@ -46,6 +46,35 @@ class AssignmentServiceTests(SimpleTestCase):
             AssignmentService.change_status.__wrapped__(assignment, "completed", user)
 
     @patch("apps.assignment.services.assignment.transaction.on_commit", side_effect=lambda func: None)
+    @patch("apps.assignment.services.assignment.Assignment.objects.create")
+    def test_assign_driver_sets_shipment_driver_and_status(self, mock_create, _on_commit):
+        shipment = SimpleNamespace(
+            id=7,
+            customer=SimpleNamespace(id=2),
+            status="matching",
+            assigned_at=None,
+            driver=None,
+            save=MagicMock(),
+        )
+        driver = SimpleNamespace(
+            id=11,
+            vehicles=SimpleNamespace(first=MagicMock(return_value=SimpleNamespace(id=99))),
+            is_available=True,
+            save=MagicMock(),
+        )
+        vehicle = SimpleNamespace(id=99)
+        mock_create.return_value = SimpleNamespace(id=1)
+
+        assignment = AssignmentService.assign_driver.__wrapped__(shipment, driver, vehicle=vehicle)
+
+        self.assertEqual(shipment.driver, driver)
+        self.assertEqual(shipment.status, "assigned")
+        self.assertIsNotNone(shipment.assigned_at)
+        shipment.save.assert_called_once()
+        driver.save.assert_called_once_with(update_fields=["is_available"])
+        self.assertIsNotNone(assignment)
+
+    @patch("apps.assignment.services.assignment.transaction.on_commit", side_effect=lambda func: None)
     @patch("apps.assignment.services.assignment.Assignment.objects.select_for_update")
     def test_delivered_requires_proof_of_delivery(self, mock_select_for_update, _on_commit):
         assignment = self._build_assignment(status="in_transit")

@@ -25,7 +25,7 @@ def get_driver(user):
 
 # Wallet
 @extend_schema(
-    tags=["Wallet"],
+    tags=["wallet"],
     summary="Get driver wallet balance",
 )
 class DriverWalletView(APIView):
@@ -38,7 +38,7 @@ class DriverWalletView(APIView):
         return Response({"balance": str(wallet.balance)})
 
 @extend_schema(
-    tags=["Wallet"],
+    tags=["wallet"],
     summary="List wallet transactions",
 )
 class WalletTransactionListView(ListAPIView):

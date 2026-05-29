@@ -43,9 +43,10 @@ class AssignmentService:
             status="assigned"
         )
 
+        shipment.driver = driver
         shipment.status = "assigned"
         shipment.assigned_at = timezone.now()
-        shipment.save(update_fields=["status", "assigned_at", "updated_at"])
+        shipment.save(update_fields=["driver", "status", "assigned_at", "updated_at"])
 
         driver.is_available = False
         driver.save(update_fields=["is_available"])
