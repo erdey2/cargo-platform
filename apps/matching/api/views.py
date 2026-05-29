@@ -217,7 +217,7 @@ class DriverResponseView(APIView):
                     offer.save(update_fields=["status", "responded_at"])
 
                     # try next driver
-                    MatchingService.match_next_driver(shipment)
+                    MatchingService.match_next_driver(shipment.id)
 
                     # REAL-TIME update
                     channel_layer = get_channel_layer()

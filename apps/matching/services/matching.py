@@ -31,34 +31,50 @@ class MatchingService:
 
     @staticmethod
     def find_nearest_drivers(shipment, exclude_driver_ids=None):
+
+        if not shipment.pickup_location:
+            return DriverLocation.objects.none()
+
         pickup_point = shipment.pickup_location
+
         valid_vehicle = MatchingService.get_valid_vehicle_subquery(shipment)
 
         queryset = DriverLocation.objects.filter(
             driver__is_available=True,
-            driver__verification_status="verified",
             is_online=True,
         )
 
-        if exclude_driver_ids:
-            queryset = queryset.exclude(driver_id__in=exclude_driver_ids)
-
-        return (
-            queryset
-            .annotate(
-                has_valid_vehicle=Exists(valid_vehicle),
-                distance=Distance("location", pickup_point)
-            )
-            .filter(
-                has_valid_vehicle=True,
-                location__distance_lte=(pickup_point, D(km=MatchingService.SEARCH_RADIUS_KM))
-            )
-            .select_related("driver", "driver__user")
-            .order_by("distance", "-driver__rating")[:MatchingService.MAX_CANDIDATES]
+        queryset = queryset.filter(
+            driver__verification_status="verified"
         )
+
+        if exclude_driver_ids:
+            queryset = queryset.exclude(
+                driver_id__in=exclude_driver_ids
+            )
+
+        queryset = queryset.annotate(
+            has_valid_vehicle=Exists(valid_vehicle),
+            distance=Distance("location", pickup_point)
+        ).filter(
+            has_valid_vehicle=True,
+            location__distance_lte=(
+                pickup_point,
+                D(km=MatchingService.SEARCH_RADIUS_KM)
+            )
+        ).select_related(
+            "driver",
+            "driver__user"
+        ).order_by(
+            "distance",
+            "-driver__average_rating"
+        )
+
+        return queryset[:MatchingService.MAX_CANDIDATES]
 
     @staticmethod
     def mark_no_driver(shipment):
+
         shipment.status = "no_driver"
         shipment.save(update_fields=["status"])
 
@@ -72,97 +88,159 @@ class MatchingService:
             user=shipment.customer,
             title="No Driver Available",
             message="Try again later.",
-            data={"type": "no_driver", "shipment_id": shipment.id}
+            data={
+                "type": "no_driver",
+                "shipment_id": shipment.id
+            }
         )
 
     @staticmethod
     def get_best_vehicle(driver, shipment):
-        return (
-            Vehicle.objects
-            .filter(
-                driver=driver,
-                verification_status=True,
-                capacity_weight__gte=shipment.weight,
-                capacity_volume__gte=shipment.volume,
-            )
-            .order_by("capacity_weight", "capacity_volume")
-            .first()
-        )
+
+        return Vehicle.objects.filter(
+            driver=driver,
+            verification_status=True,
+            capacity_weight__gte=shipment.weight,
+            capacity_volume__gte=shipment.volume,
+        ).order_by(
+            "capacity_weight",
+            "capacity_volume"
+        ).first()
 
     @staticmethod
     @transaction.atomic
     def match_driver(shipment_id):
-        shipment = Shipment.objects.select_for_update().get(id=shipment_id)
 
-        if shipment.driver is not None:
-            return None
-
-        if shipment.status != "matching":
-            return None
-
-        if DriverOffer.objects.filter(shipment=shipment, status="pending").exists():
-            return None
-
-        drivers = MatchingService.find_nearest_drivers(shipment)
-
-        if not drivers:
-            MatchingService.mark_no_driver(shipment)
-            return None
-
-        for d in drivers:
-            driver = d.driver
-
-            if DriverOffer.objects.filter(shipment=shipment, driver=driver).exists():
-                continue
-
-            vehicle = MatchingService.get_best_vehicle(driver, shipment)
-            if not vehicle:
-                continue
-
-            return MatchingService.create_offer(shipment, driver, vehicle, d)
-
-        return None
-
-    @staticmethod
-    @transaction.atomic
-    def match_next_driver(shipment_id):
-        shipment = Shipment.objects.select_for_update().get(id=shipment_id)
-
-        if shipment.driver is not None:
-            return None
-
-        if shipment.status != "matching":
-            return None
-
-        if DriverOffer.objects.filter(shipment=shipment, status="pending").exists():
-            return None
-
-        offered_driver_ids = DriverOffer.objects.filter(
-            shipment=shipment
-        ).values_list("driver_id", flat=True)
-
-        drivers = MatchingService.find_nearest_drivers(
-            shipment,
-            exclude_driver_ids=offered_driver_ids,
+        shipment = Shipment.objects.select_for_update().get(
+            id=shipment_id
         )
 
-        if not drivers:
+        if shipment.driver is not None:
+            return None
+
+        if shipment.status != "matching":
+            return None
+
+        # FIXED
+        if DriverOffer.objects.filter(
+            shipment=shipment,
+            status="pending",
+            expires_at__gt=timezone.now()
+        ).exists():
+            return None
+
+        drivers = list(
+            MatchingService.find_nearest_drivers(shipment)
+        )
+
+        if len(drivers) == 0:
             MatchingService.mark_no_driver(shipment)
             return None
 
         for d in drivers:
-            vehicle = MatchingService.get_best_vehicle(d.driver, shipment)
+
+            driver = d.driver
+
+            if DriverOffer.objects.filter(
+                shipment=shipment,
+                driver=driver
+            ).exists():
+                continue
+
+            vehicle = MatchingService.get_best_vehicle(
+                driver,
+                shipment
+            )
+
             if not vehicle:
                 continue
 
-            return MatchingService.create_offer(shipment, d.driver, vehicle, d)
+            offer = MatchingService.create_offer(
+                shipment,
+                driver,
+                vehicle,
+                d
+            )
+
+            if offer:
+                return offer
 
         MatchingService.mark_no_driver(shipment)
         return None
 
     @staticmethod
-    def create_offer(shipment, driver, vehicle, driver_location_obj):
+    @transaction.atomic
+    def match_next_driver(shipment_id):
+
+        shipment = Shipment.objects.select_for_update().get(
+            id=shipment_id
+        )
+
+        if shipment.driver is not None:
+            return None
+
+        if shipment.status != "matching":
+            return None
+
+        # FIXED
+        if DriverOffer.objects.filter(
+            shipment=shipment,
+            status="pending",
+            expires_at__gt=timezone.now()
+        ).exists():
+            return None
+
+        offered_driver_ids = DriverOffer.objects.filter(
+            shipment=shipment
+        ).values_list(
+            "driver_id",
+            flat=True
+        ).distinct()
+
+        drivers = list(
+            MatchingService.find_nearest_drivers(
+                shipment,
+                exclude_driver_ids=offered_driver_ids,
+            )
+        )
+
+        if len(drivers) == 0:
+            MatchingService.mark_no_driver(shipment)
+            return None
+
+        for d in drivers:
+
+            vehicle = MatchingService.get_best_vehicle(
+                d.driver,
+                shipment
+            )
+
+            if not vehicle:
+                continue
+
+            offer = MatchingService.create_offer(
+                shipment,
+                d.driver,
+                vehicle,
+                d
+            )
+
+            if offer:
+                return offer
+
+        MatchingService.mark_no_driver(shipment)
+        return None
+
+    @staticmethod
+    def create_offer(
+        shipment,
+        driver,
+        vehicle,
+        driver_location_obj
+    ):
+
         try:
+
             offer = DriverOffer.objects.create(
                 shipment=shipment,
                 driver=driver,
@@ -172,15 +250,22 @@ class MatchingService:
                     seconds=MatchingService.OFFER_TIMEOUT_SECONDS
                 )
             )
-        except IntegrityError:
-            return DriverOffer.objects.get(shipment=shipment, driver=driver)
 
-        lat = driver_location_obj.location.y if driver_location_obj.location else None
-        lng = driver_location_obj.location.x if driver_location_obj.location else None
+        # FIXED
+        except IntegrityError:
+            return None
+
+        lat = None
+        lng = None
+
+        if driver_location_obj.location:
+            lat = driver_location_obj.location.y
+            lng = driver_location_obj.location.x
 
         channel_layer = get_channel_layer()
+
         async_to_sync(channel_layer.group_send)(
-            f"shipment_{shipment.id}_customer",
+            f"user_{shipment.customer.id}",
             {
                 "type": "driver_found_event",
                 "payload": {
@@ -189,13 +274,24 @@ class MatchingService:
                         "driver": {
                             "id": driver.id,
                             "name": driver.user.get_full_name(),
-                            "rating": getattr(driver, "rating", None),
+                            "rating": getattr(
+                                driver,
+                                "average_rating",
+                                None
+                            ),
                         },
                         "vehicle": {
                             "id": vehicle.id,
-                            "type": getattr(vehicle, "vehicle_type", None),
+                            "type": getattr(
+                                vehicle,
+                                "vehicle_type",
+                                None
+                            ),
                         },
-                        "location": {"lat": lat, "lng": lng},
+                        "location": {
+                            "lat": lat,
+                            "lng": lng
+                        },
                         "shipment_id": shipment.id,
                         "status": "matched"
                     }
@@ -207,14 +303,20 @@ class MatchingService:
             user=shipment.customer,
             title="Driver Found",
             message="Driver is reviewing your request.",
-            data={"type": "driver_found", "shipment_id": shipment.id}
+            data={
+                "type": "driver_found",
+                "shipment_id": shipment.id
+            }
         )
 
         notify_user(
             user=driver.user,
             title="New Delivery Request",
             message="You have a new shipment request.",
-            data={"type": "new_offer", "shipment_id": shipment.id}
+            data={
+                "type": "new_offer",
+                "shipment_id": shipment.id
+            }
         )
 
         return offer
