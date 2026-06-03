@@ -1,9 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
-from django.db.models import Count, Q, F
 from django.utils import timezone
-from django.db import models as django_models
 from .models import (
     CargoType,
     Shipment,
@@ -12,7 +10,6 @@ from .models import (
     ShipmentPODOTP,
     TwilioDeliveryReceipt,
 )
-from datetime import timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -435,13 +432,6 @@ class TwilioDeliveryReceiptAdmin(admin.ModelAdmin):
         updated = queryset.update(eligible_for_retry=False)
         self.message_user(request, f'{updated} receipts marked as ineligible for retry.')
     mark_ineligible_for_retry.short_description = 'Mark as ineligible for retry'
-
-
-@admin.register(admin.site.__class__)
-class OTPMetricsDashboard(admin.AdminSite):
-    """Admin dashboard with OTP metrics and analytics"""
-    pass
-
 
 # Register models
 admin.site.register(CargoType, CargoTypeAdmin)
