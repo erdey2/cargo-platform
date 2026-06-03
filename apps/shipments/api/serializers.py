@@ -1,6 +1,6 @@
 from django.contrib.gis.geos import Point
 from rest_framework import serializers
-from ..models import Shipment, CargoType, ShipmentStatusHistory
+from ..models import Shipment, CargoType, ShipmentStatusHistory, ShipmentProofOfDelivery
 from apps.drivers.api.serializers import DriverSimpleSerializer
 
 class CargoTypeSerializer(serializers.ModelSerializer):
@@ -207,3 +207,110 @@ class ShipmentStatusHistorySerializer(serializers.ModelSerializer):
         model = ShipmentStatusHistory
         fields = ["id", "shipment", "status", "is_active", "notes", "changed_by", "created_at", "updated_at"]
         read_only_fields = ["id", "shipment", "status", "created_at", "updated_at"]
+
+
+class ShipmentProofOfDeliveryUploadSerializer(serializers.Serializer):
+    shipment = serializers.IntegerField()
+    photo = serializers.ImageField()
+    gps_latitude = serializers.FloatField(required=False, allow_null=True)
+    gps_longitude = serializers.FloatField(required=False, allow_null=True)
+    gps_accuracy_meters = serializers.FloatField(required=False, allow_null=True)
+
+
+class ShipmentProofOfDeliveryConfirmSerializer(serializers.Serializer):
+    confirmation_method = serializers.ChoiceField(
+        choices=(
+            ("in_app", "In-app"),
+            ("otp", "OTP"),
+            ("link", "Link"),
+        ),
+        required=False,
+        default="in_app",
+    )
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class ShipmentPODOTPSendSerializer(serializers.Serializer):
+    pod_id = serializers.IntegerField()
+    phone = serializers.CharField(required=False, allow_blank=True)
+
+
+class ShipmentPODOTPVerifySerializer(serializers.Serializer):
+    pod_id = serializers.IntegerField()
+    code = serializers.CharField()
+
+
+class ShipmentPODOTPResendSerializer(serializers.Serializer):
+    pod_id = serializers.IntegerField()
+    phone = serializers.CharField(required=False, allow_blank=True)
+
+
+class ShipmentProofOfDeliverySerializer(serializers.ModelSerializer):
+    shipment = serializers.SerializerMethodField()
+    uploaded_by = serializers.SerializerMethodField()
+    photo_url = serializers.SerializerMethodField()
+    gps_latitude = serializers.SerializerMethodField()
+    gps_longitude = serializers.SerializerMethodField()
+    confirmation_status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ShipmentProofOfDelivery
+        fields = [
+            "id",
+            "shipment",
+            "uploaded_by",
+            "photo_url",
+            "image_sha256",
+            "gps_latitude",
+            "gps_longitude",
+            "gps_accuracy_meters",
+            "gps_verified",
+            "gps_distance_to_dropoff_meters",
+            "is_duplicate",
+            "duplicate_of",
+            "confirmation_status",
+            "customer_confirmed",
+            "customer_confirmed_at",
+            "customer_confirmation_method",
+            "verification_notes",
+            "metadata",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_shipment(self, obj):
+        return {
+            "id": obj.shipment_id,
+            "status": obj.shipment.status,
+            "pickup_address": obj.shipment.pickup_address,
+            "dropoff_address": obj.shipment.dropoff_address,
+            "customer_id": obj.shipment.customer_id,
+            "driver_id": obj.shipment.driver_id,
+        }
+
+    def get_uploaded_by(self, obj):
+        if not obj.uploaded_by:
+            return None
+        return {
+            "id": obj.uploaded_by_id,
+            "email": obj.uploaded_by.email,
+            "role": getattr(obj.uploaded_by, "role", None),
+        }
+
+    def get_photo_url(self, obj):
+        request = self.context.get("request")
+        if not obj.photo:
+            return None
+        if request:
+            return request.build_absolute_uri(obj.photo.url)
+        return obj.photo.url
+
+    def get_gps_latitude(self, obj):
+        return obj.gps_location.y if obj.gps_location else None
+
+    def get_gps_longitude(self, obj):
+        return obj.gps_location.x if obj.gps_location else None
+
+    def get_confirmation_status(self, obj):
+        return "confirmed" if obj.customer_confirmed else "pending"
+
