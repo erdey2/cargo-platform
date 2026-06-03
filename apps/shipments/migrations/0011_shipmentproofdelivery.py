@@ -30,7 +30,7 @@ class Migration(migrations.Migration):
                 ('is_duplicate', models.BooleanField(db_index=True, default=False)),
                 ('verification_notes', models.TextField(blank=True)),
                 ('metadata', models.JSONField(blank=True, default=dict)),
-                ('duplicate_of', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='duplicate_versions', to='shipments.shipmentproofdelivery')),
+                ('duplicate_of', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='duplicate_versions', to='shipments.shipmentproofofdelivery')),
                 ('shipment', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='proofs_of_delivery', to='shipments.shipment')),
                 ('uploaded_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='uploaded_shipment_proofs', to=settings.AUTH_USER_MODEL)),
             ],
@@ -39,15 +39,15 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.AddIndex(
-            model_name='shipmentproofdelivery',
+            model_name='shipmentproofofdelivery',
             index=models.Index(fields=['shipment', 'image_sha256'], name='shipments_s_shipment_5d0f10_idx'),
         ),
         migrations.AddIndex(
-            model_name='shipmentproofdelivery',
+            model_name='shipmentproofofdelivery',
             index=models.Index(fields=['image_sha256'], name='shipments_s_image_sha_3b5e2b_idx'),
         ),
         migrations.AddIndex(
-            model_name='shipmentproofdelivery',
+            model_name='shipmentproofofdelivery',
             index=models.Index(fields=['gps_verified', 'is_duplicate'], name='shipments_s_gps_veri_1d6a7d_idx'),
         ),
     ]

@@ -11,22 +11,22 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AddField(
-            model_name='shipmentproofdelivery',
+            model_name='shipmentproofofdelivery',
             name='customer_confirmed',
             field=models.BooleanField(db_index=True, default=False),
         ),
         migrations.AddField(
-            model_name='shipmentproofdelivery',
+            model_name='shipmentproofofdelivery',
             name='customer_confirmed_at',
             field=models.DateTimeField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='shipmentproofdelivery',
+            model_name='shipmentproofofdelivery',
             name='customer_confirmation_method',
             field=models.CharField(blank=True, default='', max_length=20),
         ),
         migrations.AddIndex(
-            model_name='shipmentproofdelivery',
+            model_name='shipmentproofofdelivery',
             index=models.Index(fields=['shipment', 'customer_confirmed'], name='shipments_s_shipmen_0f8a2a_idx'),
         ),
     ]

@@ -21,7 +21,7 @@ class Migration(migrations.Migration):
                 ('expires_at', models.DateTimeField()),
                 ('attempts', models.IntegerField(default=0)),
                 ('used', models.BooleanField(db_index=True, default=False)),
-                ('pod', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='otps', to='shipments.shipmentproofdelivery')),
+                ('pod', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='otps', to='shipments.shipmentproofofdelivery')),
             ],
             options={
                 'ordering': ['-created_at'],

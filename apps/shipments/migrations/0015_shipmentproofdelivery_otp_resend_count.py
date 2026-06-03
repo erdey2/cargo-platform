@@ -11,12 +11,12 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AddField(
-            model_name='shipmentproofdelivery',
+            model_name='shipmentproofofdelivery',
             name='last_otp_sent_at',
             field=models.DateTimeField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='shipmentproofdelivery',
+            model_name='shipmentproofofdelivery',
             name='otp_resend_count',
             field=models.IntegerField(default=0),
         ),
